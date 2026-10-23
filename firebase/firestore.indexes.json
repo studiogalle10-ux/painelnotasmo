@@ -4,32 +4,42 @@
       "collectionGroup": "notas",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "recebidaEm", "order": "ASCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "recebidaEm",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "notas",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "saidaEm", "order": "DESCENDING" }
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "saidaEm",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "eventos",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "chave", "order": "ASCENDING" },
-        { "fieldPath": "criadoEm", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "eventos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "aparelho", "order": "ASCENDING" },
-        { "fieldPath": "criadoEm", "order": "DESCENDING" }
+        {
+          "fieldPath": "aparelho",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "criadoEm",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],
