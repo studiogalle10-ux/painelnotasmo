@@ -1,15 +1,20 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ProvedorSessao } from './componentes/ProvedorSessao';
 import { RotaProtegida } from './componentes/RotaProtegida';
 import { rotaInicial, useSessao } from './lib/sessao';
-import { Admin } from './paginas/Admin';
-import { Bipar } from './paginas/Bipar';
 import { Login } from './paginas/Login';
-import { Tv } from './paginas/Tv';
+
+// Cada tela é baixada só quando usada: a TV não carrega o código do admin nem da câmera.
+const Bipar = lazy(() => import('./paginas/Bipar').then((m) => ({ default: m.Bipar })));
+const Tv = lazy(() => import('./paginas/Tv').then((m) => ({ default: m.Tv })));
+const Admin = lazy(() => import('./paginas/Admin').then((m) => ({ default: m.Admin })));
+
+const carregando = <p className="aviso">Carregando…</p>;
 
 function Inicio() {
-  const { carregando, papel } = useSessao();
-  if (carregando) return <p className="aviso">Carregando…</p>;
+  const { carregando: carregandoSessao, papel } = useSessao();
+  if (carregandoSessao) return carregando;
   return <Navigate to={rotaInicial(papel)} replace />;
 }
 
@@ -17,20 +22,22 @@ export default function App() {
   return (
     <ProvedorSessao>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Inicio />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/bipar" element={
-            <RotaProtegida papeis={['operador', 'admin']}><Bipar /></RotaProtegida>
-          } />
-          <Route path="/tv" element={
-            <RotaProtegida papeis={['tv', 'admin']}><Tv /></RotaProtegida>
-          } />
-          <Route path="/admin" element={
-            <RotaProtegida papeis={['admin']}><Admin /></RotaProtegida>
-          } />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={carregando}>
+          <Routes>
+            <Route path="/" element={<Inicio />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/bipar" element={
+              <RotaProtegida papeis={['operador', 'admin']}><Bipar /></RotaProtegida>
+            } />
+            <Route path="/tv" element={
+              <RotaProtegida papeis={['tv', 'admin']}><Tv /></RotaProtegida>
+            } />
+            <Route path="/admin" element={
+              <RotaProtegida papeis={['admin']}><Admin /></RotaProtegida>
+            } />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </ProvedorSessao>
   );

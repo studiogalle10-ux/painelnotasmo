@@ -41,3 +41,133 @@ input {
 .login h1 { text-align: center; }
 .login form { display: grid; gap: 1rem; }
 .login label { display: grid; gap: 0.3rem; color: var(--texto-suave); }
+
+.botao-secundario { background: var(--superficie); border: 1px solid var(--borda); }
+.botao-link {
+  background: none;
+  color: var(--texto-suave);
+  text-decoration: underline;
+  padding: 0.4rem;
+}
+
+/* ---------- /bipar ---------- */
+.bipar {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.topo-usuario { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.topo-acoes { display: flex; align-items: center; gap: 0.75rem; }
+.topo-acoes a { color: var(--texto-suave); }
+
+.conexao { font-size: 0.85rem; padding: 0.15rem 0.5rem; border-radius: 999px; }
+.conexao-ok { background: #14532d; color: #bbf7d0; }
+.conexao-off { background: #7f1d1d; color: #fecaca; }
+
+/* Fixa no rodapé: ao sumir no primeiro toque, não desloca os botões da tela. */
+.ativar-som {
+  position: fixed;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 5;
+  background: #78350f;
+  color: #fde68a;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.resultado {
+  min-height: 9rem;
+  border-radius: 12px;
+  padding: 1.25rem 1rem;
+  display: grid;
+  align-content: center;
+  text-align: center;
+  gap: 0.4rem;
+  animation: aparecer 0.15s ease-out;
+}
+.resultado-titulo { margin: 0; font-size: clamp(1.5rem, 6vw, 2.4rem); font-weight: 700; line-height: 1.15; }
+.resultado-detalhe { margin: 0; font-size: clamp(1rem, 3.5vw, 1.25rem); opacity: 0.9; }
+.resultado-vazio { background: var(--superficie); border: 2px dashed var(--borda); color: var(--texto-suave); }
+.resultado-entrada { background: #15803d; color: #fff; }
+.resultado-saida { background: #1d4ed8; color: #fff; }
+.resultado-aviso { background: #c2410c; color: #fff; }
+.resultado-erro { background: #b91c1c; color: #fff; }
+.resultado-neutro { background: var(--superficie); color: var(--texto-suave); border: 2px solid var(--borda); }
+.resultado-processando { background: var(--superficie); color: var(--texto); border: 2px solid var(--destaque); }
+
+@keyframes aparecer {
+  from { transform: scale(0.97); opacity: 0.6; }
+  to { transform: none; opacity: 1; }
+}
+
+.campo-leitura {
+  font-size: 1.1rem;
+  padding: 0.9rem;
+  text-align: center;
+  letter-spacing: 0.04em;
+  border-width: 2px;
+}
+.campo-leitura:focus { outline: none; border-color: var(--destaque); }
+
+.bipar-acoes { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+
+.bipar-ultimas h2 { font-size: 1rem; color: var(--texto-suave); font-weight: 600; margin: 0.5rem 0; }
+.ultimas { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.ultima {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr auto;
+  grid-template-areas: "hora nf tipo" "hora emissor tipo";
+  column-gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--superficie);
+  border-radius: 8px;
+  border-left: 4px solid var(--borda);
+}
+.ultima-hora { grid-area: hora; color: var(--texto-suave); align-self: center; }
+.ultima-nf { grid-area: nf; font-weight: 600; }
+.ultima-emissor { grid-area: emissor; color: var(--texto-suave); font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ultima-tipo { grid-area: tipo; align-self: center; font-size: 0.9rem; }
+.ultima-entrada { border-left-color: #22c55e; }
+.ultima-saida { border-left-color: #3b82f6; }
+.ultima-estorno, .ultima-exclusao { border-left-color: #f59e0b; }
+.ultimas-aviso { color: var(--texto-suave); margin: 0; }
+
+.camera {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+}
+.camera-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.camera-guia {
+  position: absolute;
+  width: min(90vw, 640px);
+  height: 22vh;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+}
+.camera-texto {
+  position: absolute;
+  top: 1.25rem;
+  left: 1rem;
+  right: 1rem;
+  margin: 0;
+  text-align: center;
+  color: #fff;
+  font-size: 1.05rem;
+}
+.camera-fechar { position: absolute; bottom: 1.5rem; left: 50%; transform: translateX(-50%); }

@@ -1,9 +1,169 @@
-// Esqueleto: implementado na etapa 5.
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
+import { auth, db } from '../lib/firebase';
+import { useSessao } from '../lib/sessao';
+import { useOnline } from '../lib/conexao';
+import { idAparelho } from '../lib/aparelho';
+import { biparNota } from '../lib/bipagem';
+import { formatarDocEmitente, formatarNumeroNF, lerChave, semZerosEsquerda, type ChaveNFe } from '../lib/chaveAcesso';
+import { formatarData, formatarHora } from '../lib/datas';
+import { nomeDoEmitente } from '../lib/emitentes';
+import { criarFiltroRepeticao } from '../lib/repeticao';
+import { liberarSom, somLiberado, tocar } from '../lib/sons';
+import { CampoLeitura } from '../componentes/CampoLeitura';
+import { ResultadoBipagem, type Mensagem } from '../componentes/ResultadoBipagem';
+import { UltimasBipagens } from '../componentes/UltimasBipagens';
+
+const LeitorCamera = lazy(() => import('../componentes/LeitorCamera'));
+
+function mensagemFalha(e: unknown): string {
+  if (!navigator.onLine) return 'Sem internet. Bipe de novo quando a conexão voltar.';
+  if (e instanceof FirebaseError) {
+    if (e.code === 'permission-denied') return 'Seu usuário não tem permissão para bipar.';
+    if (e.code === 'unavailable' || e.code === 'deadline-exceeded') {
+      return 'Sem conexão com o servidor. Bipe de novo.';
+    }
+  }
+  return 'Erro ao registrar. Bipe de novo.';
+}
+
+const tituloNF = (d: ChaveNFe) => `NF ${formatarNumeroNF(d.numero)}`;
+const detalheNF = (d: ChaveNFe, emissor?: string | null) =>
+  [`Série ${semZerosEsquerda(d.serie)}`, emissor ?? formatarDocEmitente(d.cnpjEmitente, d.tipoDocEmitente), d.siglaUf]
+    .join(' · ');
+
 export function Bipar() {
+  const { usuario, nome, papel } = useSessao();
+  const online = useOnline();
+  const [aparelho] = useState(idAparelho);
+  const [filtro] = useState(() => criarFiltroRepeticao());
+  const fila = useRef<Promise<void>>(Promise.resolve());
+  const contador = useRef(0);
+
+  const [mensagem, setMensagem] = useState<Mensagem | null>(null);
+  const [camera, setCamera] = useState(false);
+  const [digitando, setDigitando] = useState(false);
+  const [somOk, setSomOk] = useState(somLiberado());
+
+  // O navegador só libera o som depois de um toque ou tecla (o leitor conta como tecla).
+  useEffect(() => {
+    if (somOk) return;
+    const liberar = () => void liberarSom().then(setSomOk);
+    window.addEventListener('pointerdown', liberar);
+    window.addEventListener('keydown', liberar);
+    return () => {
+      window.removeEventListener('pointerdown', liberar);
+      window.removeEventListener('keydown', liberar);
+    };
+  }, [somOk]);
+
+  function mostrar(m: Omit<Mensagem, 'id'>): number {
+    const id = ++contador.current;
+    setMensagem({ id, ...m });
+    return id;
+  }
+
+  /** Completa o detalhe com o nome do emissor, se a mensagem ainda for a mesma. */
+  function completarEmissor(id: number, d: ChaveNFe) {
+    void nomeDoEmitente(db, d.cnpjEmitente, d.tipoDocEmitente).then((emissor) => {
+      if (!emissor) return;
+      setMensagem((m) => (m?.id === id ? { ...m, detalhe: detalheNF(d, emissor) } : m));
+    });
+  }
+
+  async function processar(texto: string) {
+    const lida = lerChave(texto);
+    if (!lida.ok) {
+      mostrar({ tom: 'erro', titulo: 'Chave inválida', detalhe: lida.erro });
+      tocar('erro');
+      return;
+    }
+    const d = lida.dados;
+    if (filtro.ehRepeticao(d.chave)) {
+      mostrar({ tom: 'neutro', titulo: 'Leitura repetida ignorada', detalhe: tituloNF(d) });
+      return;
+    }
+
+    mostrar({ tom: 'processando', titulo: 'Registrando…', detalhe: tituloNF(d) });
+    try {
+      const r = await biparNota(db, d.chave, { uid: usuario!.uid, aparelho });
+      if (r.tipo === 'entrada') {
+        completarEmissor(mostrar({ tom: 'entrada', titulo: `${tituloNF(d)} · Preparação`, detalhe: detalheNF(d) }), d);
+        tocar('entrada');
+      } else if (r.tipo === 'saida') {
+        completarEmissor(mostrar({ tom: 'saida', titulo: `${tituloNF(d)} · Em rota`, detalhe: detalheNF(d) }), d);
+        tocar('saida');
+      } else if (r.tipo === 'ja_despachada') {
+        mostrar({
+          tom: 'aviso',
+          titulo: `${tituloNF(d)} já foi despachada`,
+          detalhe: r.saidaEm
+            ? `Saiu em ${formatarData(r.saidaEm)} às ${formatarHora(r.saidaEm)}`
+            : 'A nota já está em rota.',
+        });
+        tocar('aviso');
+      } else {
+        mostrar({ tom: 'erro', titulo: 'Chave inválida', detalhe: r.erro });
+        tocar('erro');
+      }
+    } catch (e) {
+      // Falhou: a próxima leitura dessa chave não pode ser tratada como repetição.
+      filtro.esquecer(d.chave);
+      mostrar({ tom: 'erro', titulo: `${tituloNF(d)} não foi registrada`, detalhe: mensagemFalha(e) });
+      tocar('erro');
+    }
+  }
+
+  /** Leituras em sequência: cada uma espera a anterior terminar. */
+  function aoLer(texto: string) {
+    fila.current = fila.current.then(() => processar(texto));
+  }
+
   return (
-    <main className="esqueleto">
-      <h1>Bipar</h1>
-      <p>Tela de bipagem (em construção).</p>
+    <main className="bipar">
+      <header className="topo">
+        <div className="topo-usuario">
+          <strong>{nome ?? usuario?.email}</strong>
+          <span className={online ? 'conexao conexao-ok' : 'conexao conexao-off'}>
+            {online ? 'Online' : 'Sem internet'}
+          </span>
+        </div>
+        <nav className="topo-acoes">
+          {papel === 'admin' && <Link to="/admin">Admin</Link>}
+          {papel === 'admin' && <Link to="/tv">TV</Link>}
+          <button className="botao-secundario" onClick={() => signOut(auth)}>Sair</button>
+        </nav>
+      </header>
+
+      {!somOk && (
+        <button className="ativar-som" onClick={() => void liberarSom().then(setSomOk)}>
+          Toque aqui para ativar o som
+        </button>
+      )}
+
+      <ResultadoBipagem mensagem={mensagem} />
+
+      <CampoLeitura onLer={aoLer} pausado={camera} digitando={digitando} />
+
+      <div className="bipar-acoes">
+        <button onClick={() => setCamera(true)}>Usar câmera</button>
+        <button className="botao-link" onClick={() => setDigitando((v) => !v)}>
+          {digitando ? 'Voltar ao leitor' : 'Código danificado? Digitar chave'}
+        </button>
+      </div>
+
+      <section className="bipar-ultimas">
+        <h2>Últimas bipagens neste aparelho</h2>
+        <UltimasBipagens aparelho={aparelho} />
+      </section>
+
+      {camera && (
+        <Suspense fallback={<div className="camera"><p className="camera-texto">Abrindo câmera…</p></div>}>
+          <LeitorCamera onLer={aoLer} onFechar={() => setCamera(false)} />
+        </Suspense>
+      )}
     </main>
   );
 }

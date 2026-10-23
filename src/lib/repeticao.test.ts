@@ -9,35 +9,43 @@ function relogio() {
 describe('criarFiltroRepeticao', () => {
   it('deixa passar a primeira leitura e ignora a repetição dentro de 10 s', () => {
     const r = relogio();
-    const repetida = criarFiltroRepeticao(10_000, r.agora);
-    expect(repetida('A')).toBe(false);
+    const filtro = criarFiltroRepeticao(10_000, r.agora);
+    expect(filtro.ehRepeticao('A')).toBe(false);
     r.avancar(9_999);
-    expect(repetida('A')).toBe(true);
+    expect(filtro.ehRepeticao('A')).toBe(true);
   });
 
   it('deixa passar de novo depois de 10 s', () => {
     const r = relogio();
-    const repetida = criarFiltroRepeticao(10_000, r.agora);
-    repetida('A');
+    const filtro = criarFiltroRepeticao(10_000, r.agora);
+    filtro.ehRepeticao('A');
     r.avancar(10_000);
-    expect(repetida('A')).toBe(false);
+    expect(filtro.ehRepeticao('A')).toBe(false);
   });
 
   it('repetir não renova o prazo', () => {
     const r = relogio();
-    const repetida = criarFiltroRepeticao(10_000, r.agora);
-    repetida('A');
+    const filtro = criarFiltroRepeticao(10_000, r.agora);
+    filtro.ehRepeticao('A');
     r.avancar(6_000);
-    expect(repetida('A')).toBe(true);
+    expect(filtro.ehRepeticao('A')).toBe(true);
     r.avancar(4_000);
-    expect(repetida('A')).toBe(false);
+    expect(filtro.ehRepeticao('A')).toBe(false);
   });
 
   it('trata cada chave separadamente', () => {
     const r = relogio();
-    const repetida = criarFiltroRepeticao(10_000, r.agora);
-    expect(repetida('A')).toBe(false);
-    expect(repetida('B')).toBe(false);
-    expect(repetida('A')).toBe(true);
+    const filtro = criarFiltroRepeticao(10_000, r.agora);
+    expect(filtro.ehRepeticao('A')).toBe(false);
+    expect(filtro.ehRepeticao('B')).toBe(false);
+    expect(filtro.ehRepeticao('A')).toBe(true);
+  });
+
+  it('esquecer deixa a próxima leitura passar (gravação que falhou)', () => {
+    const r = relogio();
+    const filtro = criarFiltroRepeticao(10_000, r.agora);
+    filtro.ehRepeticao('A');
+    filtro.esquecer('A');
+    expect(filtro.ehRepeticao('A')).toBe(false);
   });
 });

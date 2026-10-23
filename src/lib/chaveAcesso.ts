@@ -133,6 +133,11 @@ export function semZerosEsquerda(s: string): string {
   return s.replace(/^0+(?=.)/, '');
 }
 
+/** Número da NF para exibir: 000274914 → 274.914. */
+export function formatarNumeroNF(numero: string): string {
+  return Number(numero).toLocaleString('pt-BR');
+}
+
 export function formatarCnpj(cnpj: string): string {
   return cnpj.replace(/^(.{2})(.{3})(.{3})(.{4})(.{2})$/, '$1.$2.$3/$4-$5');
 }

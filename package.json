@@ -10,10 +10,13 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:emulador": "firebase emulators:exec --only firestore --project demo-painel-nf-mo \"vitest run --config vitest.emulador.config.ts\"",
-    "emuladores": "firebase emulators:start --project demo-painel-nf-mo",
+    "emuladores": "firebase emulators:start --only auth,firestore --project demo-painel-nf-mo",
+    "emuladores:semear": "node scripts/semear-emulador.mjs",
     "deploy": "npm run build && firebase deploy"
   },
   "dependencies": {
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "firebase": "^13.1.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

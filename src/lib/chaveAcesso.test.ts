@@ -6,6 +6,7 @@ import {
   formatarCnpj,
   formatarCpf,
   formatarDocEmitente,
+  formatarNumeroNF,
   identificarDocEmitente,
   lerChave,
   semZerosEsquerda,
@@ -247,6 +248,12 @@ describe('formatação', () => {
     expect(formatarDocEmitente('00052998224725', 'cpf')).toBe('529.982.247-25');
     expect(formatarDocEmitente('11222333000181', 'cnpj')).toBe('11.222.333/0001-81');
     expect(formatarDocEmitente('11222333000199', 'invalido')).toBe('11.222.333/0001-99');
+  });
+
+  it('formata o número da NF com separador de milhar', () => {
+    expect(formatarNumeroNF('000274914')).toBe('274.914');
+    expect(formatarNumeroNF('000000012')).toBe('12');
+    expect(formatarNumeroNF('123456789')).toBe('123.456.789');
   });
 
   it('tira zeros à esquerda de número e série', () => {
