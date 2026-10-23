@@ -14,8 +14,7 @@ import type { Evento, TipoEvento } from '../tipos/firestore';
 const ROTULO: Record<TipoEvento, string> = {
   entrada: 'Entrada',
   saida: 'Saída',
-  estorno: 'Estorno',
-  exclusao: 'Exclusão',
+  baixa: 'Baixa',
 };
 
 interface Linha {
@@ -28,7 +27,7 @@ interface Linha {
   documento: string;
 }
 
-/** Últimas 10 bipagens deste aparelho, em tempo real. */
+/** Últimas 10 ações deste computador, em tempo real. */
 export function UltimasBipagens({ aparelho }: { aparelho: string }) {
   const [linhas, setLinhas] = useState<Linha[] | null>(null);
   const [erro, setErro] = useState(false);
@@ -80,7 +79,7 @@ export function UltimasBipagens({ aparelho }: { aparelho: string }) {
 
   if (erro) return <p className="ultimas-aviso">Não foi possível carregar as últimas bipagens.</p>;
   if (!linhas) return <p className="ultimas-aviso">Carregando…</p>;
-  if (linhas.length === 0) return <p className="ultimas-aviso">Nenhuma bipagem neste aparelho ainda.</p>;
+  if (linhas.length === 0) return <p className="ultimas-aviso">Nenhuma bipagem neste computador ainda.</p>;
 
   return (
     <ol className="ultimas">

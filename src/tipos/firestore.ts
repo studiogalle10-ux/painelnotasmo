@@ -1,12 +1,10 @@
 // Formato dos documentos no Firestore (ver docs/especificacao.md, seção 6).
 import type { Timestamp } from 'firebase/firestore';
 
-export type Papel = 'admin' | 'operador' | 'tv';
-
 /** Urgência não é status: é calculada no front a partir de recebidaEm. */
-export type StatusNota = 'preparacao' | 'em_rota';
+export type StatusNota = 'preparacao' | 'em_rota' | 'baixada';
 
-export type TipoEvento = 'entrada' | 'saida' | 'estorno' | 'exclusao';
+export type TipoEvento = 'entrada' | 'saida' | 'baixa';
 
 /** notas/{chave de 44 caracteres} */
 export interface Nota {
@@ -23,11 +21,14 @@ export interface Nota {
   recebidaPor: string;
   saidaEm?: Timestamp;
   saidaPor?: string;
+  /** Baixa: tirada da TV antes do prazo de "Em rota". */
+  baixadaEm?: Timestamp;
+  baixadaPor?: string;
   /** Evento gravado junto com a última alteração (exigido pelas regras). */
   ultimoEventoId: string;
 }
 
-/** eventos/{id automático}; exclusão usa `${ultimoEventoId}_exclusao`. */
+/** eventos/{id automático} */
 export interface Evento {
   chave: string;
   tipo: TipoEvento;
@@ -47,13 +48,8 @@ export interface Emitente {
 /** config/geral */
 export interface Config {
   diasUrgencia: number;
-  horasEmRotaNaTv: number;
+  /** Depois de quantos dias a nota "Em rota" sai sozinha da TV. */
+  diasEmRotaNaTv: number;
 }
 
-export const CONFIG_PADRAO: Config = { diasUrgencia: 5, horasEmRotaNaTv: 24 };
-
-/** usuarios/{uid do Auth} */
-export interface Usuario {
-  nome: string;
-  papel: Papel;
-}
+export const CONFIG_PADRAO: Config = { diasUrgencia: 5, diasEmRotaNaTv: 1 };

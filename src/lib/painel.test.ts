@@ -11,7 +11,7 @@ const dados = leitura.dados;
 const AGORA = new Date('2026-10-23T15:00:00Z');
 const HORA = 60 * 60 * 1000;
 const antes = (horas: number) => new Date(AGORA.getTime() - horas * HORA);
-const CONFIG: Config = { diasUrgencia: 5, horasEmRotaNaTv: 24 };
+const CONFIG: Config = { diasUrgencia: 5, diasEmRotaNaTv: 1 };
 
 const preparacao = (horas: number, id = horas): NotaPainel => ({
   dados: { ...dados, numero: String(id) },
@@ -65,12 +65,12 @@ describe('separarColunas', () => {
     expect(numeros(c.emRota)).toEqual([1, 5, 12]);
   });
 
-  it('segue a configuração do admin', () => {
-    const config: Config = { diasUrgencia: 3, horasEmRotaNaTv: 12 };
-    const c = separarColunas([preparacao(2 * 24), preparacao(3 * 24), emRota(13)], AGORA, config);
+  it('segue os ajustes', () => {
+    const config: Config = { diasUrgencia: 3, diasEmRotaNaTv: 2 };
+    const c = separarColunas([preparacao(2 * 24), preparacao(3 * 24), emRota(47), emRota(49)], AGORA, config);
     expect(numeros(c.urgencia)).toEqual([3 * 24]);
     expect(c.preparacao[0].alerta).toBe(true);
-    expect(c.emRota).toHaveLength(0);
+    expect(numeros(c.emRota)).toEqual([47]);
   });
 
   it('calcula os dias parada', () => {

@@ -140,7 +140,7 @@ input {
 .ultima-tipo { grid-area: tipo; align-self: center; font-size: 0.9rem; }
 .ultima-entrada { border-left-color: #22c55e; }
 .ultima-saida { border-left-color: #3b82f6; }
-.ultima-estorno, .ultima-exclusao { border-left-color: #f59e0b; }
+.ultima-baixa { border-left-color: #64748b; }
 .ultimas-aviso { color: var(--texto-suave); margin: 0; }
 
 .camera {
@@ -256,3 +256,24 @@ input {
 .cartao-em_rota .cartao-nf { font-size: 3vh; color: #cbd5e1; }
 .cartao-em_rota .cartao-emissor { font-size: 2.1vh; color: #94a3b8; }
 .cartao-saida { font-size: 2.6vh; color: #93c5fd; white-space: nowrap; }
+
+.ultima-com-botao {
+  grid-template-columns: 6.5rem 1fr auto;
+  grid-template-areas: "hora nf botao" "hora emissor botao";
+}
+.ultima-botao { grid-area: botao; align-self: center; padding: 0.4rem 0.9rem; }
+
+.ajustes {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.ajustes label { display: grid; gap: 0.35rem; color: var(--texto-suave); }
+.ajustes strong { color: var(--texto); }
+.ajustes input { max-width: 8rem; }
+.ajustes-botoes { display: flex; justify-content: flex-end; gap: 0.6rem; }
+
+.login-dica { color: var(--texto-suave); font-size: 0.9rem; text-align: center; margin: 0; }

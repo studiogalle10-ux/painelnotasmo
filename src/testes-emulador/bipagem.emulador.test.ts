@@ -23,22 +23,30 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import regras from '../../firebase/firestore.rules?raw';
-import { biparNota, estornarSaida, excluirNota } from '../lib/bipagem';
+import { biparNota, darBaixa } from '../lib/bipagem';
 import { lerChave } from '../lib/chaveAcesso';
+import { EMAIL_PAINEL } from '../lib/firebase';
 import type { Evento } from '../tipos/firestore';
 
 const CHAVE = '35261002745352000100550010002749141153853870';
 const OUTRA_CHAVE = '35261011222333000181550010000123451123456784';
 const APARELHO = 'aparelho-teste';
+/** UID da conta única do painel (todos os computadores usam a mesma). */
+const PAINEL = 'painel';
 
 let env: RulesTestEnvironment;
 
-/** Firestore com o login de `uid` (ou sem login). Instância compat usada pela API modular. */
-const banco = (uid?: string) =>
-  (uid ? env.authenticatedContext(uid) : env.unauthenticatedContext())
+/**
+ * Firestore com login. Sem argumentos: a conta do painel. `email` diferente: alguém que
+ * criou outra conta no Firebase. `null`: sem login. Instância compat usada pela API modular.
+ */
+const banco = (email: string | null = EMAIL_PAINEL, uid = PAINEL) =>
+  (email === null ? env.unauthenticatedContext() : env.authenticatedContext(uid, { email }))
     .firestore() as unknown as Firestore;
 
-const autor = (uid: string) => ({ uid, aparelho: APARELHO });
+const intruso = () => banco('qualquer@gmail.com', 'intruso');
+
+const autor = (uid = PAINEL) => ({ uid, aparelho: APARELHO });
 
 /** Lê sem passar pelas regras, para conferir o que ficou gravado. */
 async function lerSemRegras<T>(fn: (db: Firestore) => Promise<T>): Promise<T> {
@@ -89,6 +97,12 @@ function batchEntrada(
   return b;
 }
 
+/** Bipa duas vezes: a nota fica em rota. */
+async function emRota(chave = CHAVE) {
+  await biparNota(banco(), chave, autor());
+  await biparNota(banco(), chave, autor());
+}
+
 beforeAll(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-painel-nf-mo',
@@ -102,23 +116,16 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await env.clearFirestore();
-  await env.withSecurityRulesDisabled(async (ctx) => {
-    const db = ctx.firestore() as unknown as Firestore;
-    await setDoc(doc(db, 'usuarios', 'admin'), { nome: 'Admin', papel: 'admin' });
-    await setDoc(doc(db, 'usuarios', 'op'), { nome: 'Operador', papel: 'operador' });
-    await setDoc(doc(db, 'usuarios', 'op2'), { nome: 'Operador 2', papel: 'operador' });
-    await setDoc(doc(db, 'usuarios', 'tv'), { nome: 'TV', papel: 'tv' });
-  });
 });
 
 describe('biparNota', () => {
   it('1ª bipagem cria a nota em preparação, com evento de entrada', async () => {
-    const r = await biparNota(banco('op'), CHAVE, autor('op'));
+    const r = await biparNota(banco(), CHAVE, autor());
     expect(r.tipo).toBe('entrada');
 
     const nota = await lerNota();
     expect(nota).toMatchObject({
-      status: 'preparacao', recebidaPor: 'op', numero: '000274914', cnpjEmitente: '02745352000100',
+      status: 'preparacao', recebidaPor: PAINEL, numero: '000274914', cnpjEmitente: '02745352000100',
     });
     expect(nota?.recebidaEm).toBeInstanceOf(Timestamp);
     expect(nota?.saidaEm).toBeUndefined();
@@ -126,27 +133,26 @@ describe('biparNota', () => {
     const eventos = await eventosDa();
     expect(eventos).toHaveLength(1);
     expect(eventos[0]).toMatchObject({
-      id: nota?.ultimoEventoId, tipo: 'entrada', usuario: 'op', aparelho: APARELHO,
+      id: nota?.ultimoEventoId, tipo: 'entrada', usuario: PAINEL, aparelho: APARELHO,
     });
   });
 
   it('2ª bipagem dá saída, com evento de saída', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    const r = await biparNota(banco('op2'), CHAVE, autor('op2'));
+    await biparNota(banco(), CHAVE, autor());
+    const r = await biparNota(banco(), CHAVE, autor());
     expect(r.tipo).toBe('saida');
 
     const nota = await lerNota();
-    expect(nota).toMatchObject({ status: 'em_rota', saidaPor: 'op2', recebidaPor: 'op' });
+    expect(nota).toMatchObject({ status: 'em_rota', saidaPor: PAINEL });
     expect(nota?.saidaEm).toBeInstanceOf(Timestamp);
     expect((await eventosDa()).map((e) => e.tipo).sort()).toEqual(['entrada', 'saida']);
   });
 
   it('3ª bipagem só avisa que já foi despachada e não grava nada', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    await biparNota(banco('op'), CHAVE, autor('op'));
+    await emRota();
     const antes = await lerNota();
 
-    const r = await biparNota(banco('op'), CHAVE, autor('op'));
+    const r = await biparNota(banco(), CHAVE, autor());
     expect(r.tipo).toBe('ja_despachada');
     if (r.tipo === 'ja_despachada') expect(r.saidaEm).toBeInstanceOf(Date);
     expect(await lerNota()).toEqual(antes);
@@ -154,7 +160,7 @@ describe('biparNota', () => {
   });
 
   it('chave inválida volta sem gravar nada', async () => {
-    const r = await biparNota(banco('op'), CHAVE.slice(0, 43) + '9', autor('op'));
+    const r = await biparNota(banco(), CHAVE.slice(0, 43) + '9', autor());
     expect(r).toEqual({ tipo: 'invalida', erro: 'Dígito verificador inválido. Bipe novamente.' });
     expect(await lerNota()).toBeUndefined();
     expect(await eventosDa()).toHaveLength(0);
@@ -162,217 +168,177 @@ describe('biparNota', () => {
 
   it('duas bipagens ao mesmo tempo não duplicam a nota', async () => {
     const resultados = await Promise.all([
-      biparNota(banco('op'), CHAVE, autor('op')),
-      biparNota(banco('op2'), CHAVE, autor('op2')),
+      biparNota(banco(), CHAVE, autor()),
+      biparNota(banco(), CHAVE, { uid: PAINEL, aparelho: 'outro-computador' }),
     ]);
     // A transação faz a segunda enxergar a primeira: uma entrada e uma saída.
     expect(resultados.map((r) => r.tipo).sort()).toEqual(['entrada', 'saida']);
     expect((await eventosDa()).map((e) => e.tipo).sort()).toEqual(['entrada', 'saida']);
   });
 
-  it('o admin também pode bipar', async () => {
-    expect((await biparNota(banco('admin'), CHAVE, autor('admin'))).tipo).toBe('entrada');
-  });
-
-  it('TV, usuário sem papel e visitante sem login não conseguem bipar', async () => {
-    await assertFails(biparNota(banco('tv'), CHAVE, autor('tv')));
-    await assertFails(biparNota(banco('sem-papel'), CHAVE, autor('sem-papel')));
-    await assertFails(biparNota(banco(), CHAVE, autor('ninguem')));
+  it('outra conta do Firebase e visitante sem login não conseguem bipar', async () => {
+    await assertFails(biparNota(intruso(), CHAVE, autor('intruso')));
+    await assertFails(biparNota(banco(null), CHAVE, autor('ninguem')));
     expect(await lerNota()).toBeUndefined();
   });
 });
 
-describe('estornarSaida', () => {
-  it('admin volta a nota para preparação, mantendo a data de recebimento', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    const recebidaEm = (await lerNota())?.recebidaEm;
-    await biparNota(banco('op'), CHAVE, autor('op'));
-
-    await estornarSaida(banco('admin'), CHAVE, autor('admin'), 'Saiu por engano');
+describe('darBaixa', () => {
+  it('tira a nota em rota da TV, com evento de baixa', async () => {
+    await emRota();
+    await darBaixa(banco(), CHAVE, autor());
 
     const nota = await lerNota();
-    expect(nota?.status).toBe('preparacao');
-    expect(nota?.saidaEm).toBeUndefined();
-    expect(nota?.saidaPor).toBeUndefined();
-    expect(nota?.recebidaEm).toEqual(recebidaEm);
-    const estorno = (await eventosDa()).find((e) => e.tipo === 'estorno');
-    expect(estorno).toMatchObject({ usuario: 'admin', detalhe: 'Saiu por engano' });
-
-    // Depois do estorno, a próxima bipagem dá saída de novo.
-    expect((await biparNota(banco('op'), CHAVE, autor('op'))).tipo).toBe('saida');
+    expect(nota).toMatchObject({ status: 'baixada', baixadaPor: PAINEL });
+    expect(nota?.baixadaEm).toBeInstanceOf(Timestamp);
+    expect(nota?.saidaEm).toBeInstanceOf(Timestamp);
+    expect((await eventosDa()).map((e) => e.tipo).sort()).toEqual(['baixa', 'entrada', 'saida']);
   });
 
-  it('operador não consegue estornar', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    await assertFails(estornarSaida(banco('op'), CHAVE, autor('op')));
+  it('bipada de novo depois da baixa, só avisa que já foi despachada', async () => {
+    await emRota();
+    await darBaixa(banco(), CHAVE, autor());
+    expect((await biparNota(banco(), CHAVE, autor())).tipo).toBe('ja_despachada');
+    expect((await lerNota())?.status).toBe('baixada');
+  });
+
+  it('recusa baixa de nota que ainda está em preparação', async () => {
+    await biparNota(banco(), CHAVE, autor());
+    await expect(darBaixa(banco(), CHAVE, autor())).rejects.toThrow('A nota não está em rota.');
+  });
+
+  it('outra conta não consegue dar baixa', async () => {
+    await emRota();
+    await assertFails(darBaixa(intruso(), CHAVE, autor('intruso')));
     expect((await lerNota())?.status).toBe('em_rota');
-  });
-
-  it('recusa estornar nota que não está em rota', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    await expect(estornarSaida(banco('admin'), CHAVE, autor('admin')))
-      .rejects.toThrow('A nota não está em rota.');
-  });
-});
-
-describe('excluirNota', () => {
-  it('admin apaga a nota e o evento de exclusão fica no histórico', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    const { ultimoEventoId } = (await lerNota()) ?? {};
-
-    await excluirNota(banco('admin'), CHAVE, autor('admin'), 'Nota de outra transportadora');
-
-    expect(await lerNota()).toBeUndefined();
-    const exclusao = (await eventosDa()).find((e) => e.tipo === 'exclusao');
-    expect(exclusao).toMatchObject({
-      id: `${ultimoEventoId}_exclusao`, usuario: 'admin', detalhe: 'Nota de outra transportadora',
-    });
-
-    // Bipada de novo, entra como nota nova.
-    expect((await biparNota(banco('op'), CHAVE, autor('op'))).tipo).toBe('entrada');
-  });
-
-  it('operador não consegue excluir', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    await assertFails(excluirNota(banco('op'), CHAVE, autor('op')));
-    expect(await lerNota()).toBeDefined();
   });
 });
 
 describe('regras: gravações feitas por fora das funções', () => {
   it('aceita a entrada montada corretamente (controle dos testes abaixo)', async () => {
-    await assertSucceeds(batchEntrada(banco('op'), 'op').commit());
+    await assertSucceeds(batchEntrada(banco(), PAINEL).commit());
   });
 
   it('recusa nota sem o evento', async () => {
-    const db = banco('op');
-    await assertFails(setDoc(doc(db, 'notas', CHAVE), camposEntrada(CHAVE, 'op', 'qualquer')));
+    await assertFails(setDoc(doc(banco(), 'notas', CHAVE), camposEntrada(CHAVE, PAINEL, 'qualquer')));
   });
 
   it('recusa evento sem a nota', async () => {
-    const db = banco('op');
-    await assertFails(setDoc(doc(collection(db, 'eventos')), eventoDe(CHAVE, 'entrada', 'op')));
+    await assertFails(setDoc(doc(collection(banco(), 'eventos')), eventoDe(CHAVE, 'entrada', PAINEL)));
   });
 
-  it('recusa data de recebimento escolhida pelo aparelho', async () => {
-    const db = banco('op');
-    await assertFails(batchEntrada(db, 'op', (n) => {
+  it('recusa data de recebimento escolhida pelo computador', async () => {
+    await assertFails(batchEntrada(banco(), PAINEL, (n) => {
       n.recebidaEm = Timestamp.fromDate(new Date('2026-01-01T12:00:00Z'));
     }).commit());
   });
 
   it('recusa campos que não batem com a chave', async () => {
-    await assertFails(batchEntrada(banco('op'), 'op', (n) => { n.numero = '000000001'; }).commit());
+    await assertFails(batchEntrada(banco(), PAINEL, (n) => { n.numero = '000000001'; }).commit());
   });
 
-  it('recusa campo extra e recebidaPor de outra pessoa', async () => {
-    await assertFails(batchEntrada(banco('op'), 'op', (n) => { n.urgente = true; }).commit());
-    await assertFails(batchEntrada(banco('op'), 'op', (n) => { n.recebidaPor = 'op2'; }).commit());
+  it('recusa campo extra e recebidaPor de outra conta', async () => {
+    await assertFails(batchEntrada(banco(), PAINEL, (n) => { n.urgente = true; }).commit());
+    await assertFails(batchEntrada(banco(), PAINEL, (n) => { n.recebidaPor = 'outro'; }).commit());
   });
 
-  it('recusa criar a nota já em rota', async () => {
-    await assertFails(batchEntrada(banco('op'), 'op', (n) => { n.status = 'em_rota'; }).commit());
+  it('recusa criar a nota já em rota ou baixada', async () => {
+    await assertFails(batchEntrada(banco(), PAINEL, (n) => { n.status = 'em_rota'; }).commit());
+    await assertFails(batchEntrada(banco(), PAINEL, (n) => { n.status = 'baixada'; }).commit());
   });
 
   it('recusa saída que mexe na data de recebimento', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    const db = banco('op');
+    await biparNota(banco(), CHAVE, autor());
+    const db = banco();
     const refEvento = doc(collection(db, 'eventos'));
     const b = writeBatch(db);
     b.update(doc(db, 'notas', CHAVE), {
-      status: 'em_rota', saidaEm: serverTimestamp(), saidaPor: 'op', ultimoEventoId: refEvento.id,
+      status: 'em_rota', saidaEm: serverTimestamp(), saidaPor: PAINEL, ultimoEventoId: refEvento.id,
       recebidaEm: serverTimestamp(),
     });
-    b.set(refEvento, eventoDe(CHAVE, 'saida', 'op'));
+    b.set(refEvento, eventoDe(CHAVE, 'saida', PAINEL));
     await assertFails(b.commit());
   });
 
   it('recusa saída que reaproveita um evento antigo', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
+    await biparNota(banco(), CHAVE, autor());
     const { ultimoEventoId } = (await lerNota()) ?? {};
-    await assertFails(updateDoc(doc(banco('op'), 'notas', CHAVE), {
-      status: 'em_rota', saidaEm: serverTimestamp(), saidaPor: 'op', ultimoEventoId,
+    await assertFails(updateDoc(doc(banco(), 'notas', CHAVE), {
+      status: 'em_rota', saidaEm: serverTimestamp(), saidaPor: PAINEL, ultimoEventoId,
     }));
   });
 
-  it('recusa evento de estorno gravado por operador', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    await biparNota(banco('op'), CHAVE, autor('op'));
-    const db = banco('op');
+  it('recusa voltar a nota de em rota para preparação', async () => {
+    await emRota();
+    const db = banco();
     const refEvento = doc(collection(db, 'eventos'));
     const b = writeBatch(db);
-    b.update(doc(db, 'notas', CHAVE), {
-      status: 'preparacao', saidaEm: null, saidaPor: null, ultimoEventoId: refEvento.id,
-    });
-    b.set(refEvento, eventoDe(CHAVE, 'estorno', 'op'));
+    b.update(doc(db, 'notas', CHAVE), { status: 'preparacao', ultimoEventoId: refEvento.id });
+    b.set(refEvento, eventoDe(CHAVE, 'saida', PAINEL));
     await assertFails(b.commit());
   });
 
-  it('o histórico não pode ser alterado nem apagado, nem pelo admin', async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
+  it('nota não pode ser apagada', async () => {
+    await biparNota(banco(), CHAVE, autor());
+    await assertFails(deleteDoc(doc(banco(), 'notas', CHAVE)));
+  });
+
+  it('o histórico não pode ser alterado nem apagado', async () => {
+    await biparNota(banco(), CHAVE, autor());
     const [ev] = await eventosDa();
-    await assertFails(updateDoc(doc(banco('admin'), 'eventos', ev.id), { detalhe: 'mudou' }));
-    await assertFails(deleteDoc(doc(banco('admin'), 'eventos', ev.id)));
+    await assertFails(updateDoc(doc(banco(), 'eventos', ev.id), { detalhe: 'mudou' }));
+    await assertFails(deleteDoc(doc(banco(), 'eventos', ev.id)));
   });
 });
 
 describe('regras: leitura', () => {
   beforeEach(async () => {
-    await biparNota(banco('op'), CHAVE, autor('op'));
+    await biparNota(banco(), CHAVE, autor());
   });
 
-  it('TV lê notas, mas não o histórico', async () => {
-    await assertSucceeds(getDoc(doc(banco('tv'), 'notas', CHAVE)));
-    await assertFails(getDocs(collection(banco('tv'), 'eventos')));
+  it('a conta do painel lê notas e histórico', async () => {
+    await assertSucceeds(getDoc(doc(banco(), 'notas', CHAVE)));
+    await assertSucceeds(getDocs(collection(banco(), 'eventos')));
   });
 
-  it('operador lê notas e histórico', async () => {
-    await assertSucceeds(getDoc(doc(banco('op'), 'notas', CHAVE)));
-    await assertSucceeds(getDocs(collection(banco('op'), 'eventos')));
+  it('outra conta do Firebase e sem login não leem nada', async () => {
+    await assertFails(getDoc(doc(intruso(), 'notas', CHAVE)));
+    await assertFails(getDocs(collection(intruso(), 'eventos')));
+    await assertFails(getDoc(doc(banco(null), 'notas', CHAVE)));
   });
 
-  it('sem login ou sem papel não lê nada', async () => {
-    await assertFails(getDoc(doc(banco(), 'notas', CHAVE)));
-    await assertFails(getDoc(doc(banco('sem-papel'), 'notas', CHAVE)));
-  });
-
-  it('consulta da TV por status funciona', async () => {
-    await biparNota(banco('op'), OUTRA_CHAVE, autor('op'));
-    const snap = await assertSucceeds(getDocs(
-      query(collection(banco('tv'), 'notas'), where('status', '==', 'preparacao')),
+  it('consultas da TV funcionam', async () => {
+    await biparNota(banco(), OUTRA_CHAVE, autor());
+    await biparNota(banco(), OUTRA_CHAVE, autor());
+    const prep = await assertSucceeds(getDocs(
+      query(collection(banco(), 'notas'), where('status', '==', 'preparacao')),
     ));
-    expect(snap.size).toBe(2);
+    expect(prep.size).toBe(1);
+    const rota = await assertSucceeds(getDocs(query(collection(banco(), 'notas'),
+      where('status', '==', 'em_rota'), where('saidaEm', '>=', Timestamp.fromMillis(Date.now() - 86_400_000)))));
+    expect(rota.size).toBe(1);
   });
 });
 
-describe('regras: config, emitentes e usuários', () => {
-  it('config: só admin, só o documento geral, com números válidos', async () => {
-    await assertSucceeds(setDoc(doc(banco('admin'), 'config', 'geral'),
-      { diasUrgencia: 5, horasEmRotaNaTv: 24 }));
-    await assertFails(setDoc(doc(banco('admin'), 'config', 'geral'),
-      { diasUrgencia: 'abc', horasEmRotaNaTv: 24 }));
-    await assertFails(setDoc(doc(banco('admin'), 'config', 'outro'),
-      { diasUrgencia: 5, horasEmRotaNaTv: 24 }));
-    await assertFails(setDoc(doc(banco('op'), 'config', 'geral'),
-      { diasUrgencia: 5, horasEmRotaNaTv: 24 }));
-    await assertSucceeds(getDoc(doc(banco('tv'), 'config', 'geral')));
+describe('regras: ajustes e emitentes', () => {
+  it('ajustes: só o documento geral, com números válidos', async () => {
+    await assertSucceeds(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 2 }));
+    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 'abc', diasEmRotaNaTv: 2 }));
+    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 0 }));
+    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 31 }));
+    await assertFails(setDoc(doc(banco(), 'config', 'geral'),
+      { diasUrgencia: 5, diasEmRotaNaTv: 2, outro: true }));
+    await assertFails(setDoc(doc(banco(), 'config', 'outro'), { diasUrgencia: 5, diasEmRotaNaTv: 2 }));
+    await assertFails(setDoc(doc(intruso(), 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 2 }));
+    await assertSucceeds(getDoc(doc(banco(), 'config', 'geral')));
   });
 
-  it('emitentes: operador grava o cache com campos válidos', async () => {
+  it('emitentes: grava o cache só com campos válidos', async () => {
     const valido = { razaoSocial: 'Empresa Teste Ltda', nomeFantasia: 'Teste', consultadoEm: serverTimestamp() };
-    await assertSucceeds(setDoc(doc(banco('op'), 'emitentes', '02745352000100'), valido));
-    await assertFails(setDoc(doc(banco('op'), 'emitentes', '123'), valido));
-    await assertFails(setDoc(doc(banco('op'), 'emitentes', '02745352000100'),
+    await assertSucceeds(setDoc(doc(banco(), 'emitentes', '02745352000100'), valido));
+    await assertFails(setDoc(doc(banco(), 'emitentes', '123'), valido));
+    await assertFails(setDoc(doc(banco(), 'emitentes', '02745352000100'),
       { ...valido, telefone: '11999999999' }));
-    await assertFails(setDoc(doc(banco('tv'), 'emitentes', '02745352000100'), valido));
-  });
-
-  it('usuários: operador não se promove; admin define papéis válidos', async () => {
-    await assertFails(updateDoc(doc(banco('op'), 'usuarios', 'op'), { papel: 'admin' }));
-    await assertSucceeds(getDoc(doc(banco('op'), 'usuarios', 'op')));
-    await assertFails(getDoc(doc(banco('op'), 'usuarios', 'admin')));
-    await assertSucceeds(setDoc(doc(banco('admin'), 'usuarios', 'novo'), { nome: 'Novo', papel: 'operador' }));
-    await assertFails(setDoc(doc(banco('admin'), 'usuarios', 'novo'), { nome: 'Novo', papel: 'chefe' }));
+    await assertFails(setDoc(doc(intruso(), 'emitentes', '02745352000100'), valido));
   });
 });

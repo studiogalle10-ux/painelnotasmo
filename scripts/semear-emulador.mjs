@@ -1,4 +1,4 @@
-// Prepara o Emulator com usuários e notas de teste. NÃO usar no projeto real.
+// Prepara o Emulator com a conta do painel e notas de teste. NÃO usar no projeto real.
 // Uso: com `npm run emuladores` rodando, em outro terminal: npm run emuladores:semear
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { Timestamp, doc, setDoc } from 'firebase/firestore';
@@ -7,12 +7,8 @@ import { calcularDV } from '../src/lib/chaveAcesso.ts';
 const PROJETO = 'demo-painel-nf-mo';
 const AUTH = 'http://127.0.0.1:9099';
 
-// Usuários de teste (só existem no Emulator).
-const USUARIOS = [
-  { uid: 'admin-teste', email: 'admin@teste.local', senha: 'teste123', nome: 'Admin Teste', papel: 'admin' },
-  { uid: 'operador-teste', email: 'operador@teste.local', senha: 'teste123', nome: 'Operador Teste', papel: 'operador' },
-  { uid: 'tv-teste', email: 'tv@teste.local', senha: 'teste123', nome: 'TV Galpão', papel: 'tv' },
-];
+// Conta do painel (mesmo e-mail de EMAIL_PAINEL em src/lib/firebase.ts). Só existe no Emulator.
+const PAINEL = { uid: 'painel', email: 'painel@painelmotnsp.firebaseapp.com', senha: 'teste123' };
 
 async function auth(caminho, metodo, corpo) {
   const r = await fetch(`${AUTH}${caminho}`, {
@@ -44,11 +40,9 @@ const NOTAS = [
 ];
 
 await auth(`/emulator/v1/projects/${PROJETO}/accounts`, 'DELETE');
-for (const u of USUARIOS) {
-  await auth(`/identitytoolkit.googleapis.com/v1/projects/${PROJETO}/accounts`, 'POST', {
-    localId: u.uid, email: u.email, password: u.senha, displayName: u.nome,
-  });
-}
+await auth(`/identitytoolkit.googleapis.com/v1/projects/${PROJETO}/accounts`, 'POST', {
+  localId: PAINEL.uid, email: PAINEL.email, password: PAINEL.senha,
+});
 
 const env = await initializeTestEnvironment({
   projectId: PROJETO,
@@ -57,10 +51,7 @@ const env = await initializeTestEnvironment({
 await env.clearFirestore();
 await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();
-  for (const u of USUARIOS) {
-    await setDoc(doc(db, 'usuarios', u.uid), { nome: u.nome, papel: u.papel });
-  }
-  await setDoc(doc(db, 'config', 'geral'), { diasUrgencia: 5, horasEmRotaNaTv: 24 });
+  await setDoc(doc(db, 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 1 });
   await setDoc(doc(db, 'emitentes', '11222333000181'), {
     razaoSocial: 'DISTRIBUIDORA EXEMPLO LTDA', nomeFantasia: 'Exemplo Distribuidora', consultadoEm: ha(0),
   });
@@ -70,20 +61,20 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     const entrada = `semente-${n.numero}-entrada`;
     const saida = `semente-${n.numero}-saida`;
     await setDoc(doc(db, 'eventos', entrada), {
-      chave: c, tipo: 'entrada', usuario: 'operador-teste', aparelho: 'semente', criadoEm: ha(n.recebidaHa),
+      chave: c, tipo: 'entrada', usuario: 'painel', aparelho: 'semente', criadoEm: ha(n.recebidaHa),
     });
     const nota = {
       uf: '35', aamm: '2610', cnpjEmitente: n.cnpj, modelo: '55', serie: '001',
       numero: c.slice(25, 34), tpEmis: '1', codigoNumerico: c.slice(35, 43),
-      status: 'preparacao', recebidaEm: ha(n.recebidaHa), recebidaPor: 'operador-teste',
+      status: 'preparacao', recebidaEm: ha(n.recebidaHa), recebidaPor: 'painel',
       ultimoEventoId: entrada,
     };
     if (n.saidaHa !== undefined) {
       await setDoc(doc(db, 'eventos', saida), {
-        chave: c, tipo: 'saida', usuario: 'operador-teste', aparelho: 'semente', criadoEm: ha(n.saidaHa),
+        chave: c, tipo: 'saida', usuario: 'painel', aparelho: 'semente', criadoEm: ha(n.saidaHa),
       });
       Object.assign(nota, {
-        status: 'em_rota', saidaEm: ha(n.saidaHa), saidaPor: 'operador-teste', ultimoEventoId: saida,
+        status: 'em_rota', saidaEm: ha(n.saidaHa), saidaPor: 'painel', ultimoEventoId: saida,
       });
     }
     await setDoc(doc(db, 'notas', c), nota);
@@ -91,6 +82,5 @@ await env.withSecurityRulesDisabled(async (ctx) => {
 });
 await env.cleanup();
 
-console.log(`Emulator preparado: ${USUARIOS.length} usuários e ${NOTAS.length} notas.`);
-for (const u of USUARIOS) console.log(`  ${u.papel.padEnd(8)} ${u.email}`);
-console.log('Senha de todos: a que está em scripts/semear-emulador.mjs');
+console.log(`Emulator preparado: conta do painel e ${NOTAS.length} notas.`);
+console.log('Senha: a que está em scripts/semear-emulador.mjs');

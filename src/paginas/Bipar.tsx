@@ -1,9 +1,9 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
 import { signOut } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth, db } from '../lib/firebase';
 import { useSessao } from '../lib/sessao';
+import { useConfig } from '../lib/config';
 import { useOnline } from '../lib/conexao';
 import { idAparelho } from '../lib/aparelho';
 import { biparNota } from '../lib/bipagem';
@@ -12,16 +12,16 @@ import { formatarData, formatarHora } from '../lib/datas';
 import { nomeDoEmitente } from '../lib/emitentes';
 import { criarFiltroRepeticao } from '../lib/repeticao';
 import { liberarSom, somLiberado, tocar } from '../lib/sons';
+import { Ajustes } from '../componentes/Ajustes';
 import { CampoLeitura } from '../componentes/CampoLeitura';
+import { EmRotaNaTv } from '../componentes/EmRotaNaTv';
 import { ResultadoBipagem, type Mensagem } from '../componentes/ResultadoBipagem';
 import { UltimasBipagens } from '../componentes/UltimasBipagens';
-
-const LeitorCamera = lazy(() => import('../componentes/LeitorCamera'));
 
 function mensagemFalha(e: unknown): string {
   if (!navigator.onLine) return 'Sem internet. Bipe de novo quando a conexão voltar.';
   if (e instanceof FirebaseError) {
-    if (e.code === 'permission-denied') return 'Seu usuário não tem permissão para bipar.';
+    if (e.code === 'permission-denied') return 'Este computador não está conectado ao painel. Saia e entre de novo.';
     if (e.code === 'unavailable' || e.code === 'deadline-exceeded') {
       return 'Sem conexão com o servidor. Bipe de novo.';
     }
@@ -34,8 +34,14 @@ const detalheNF = (d: ChaveNFe, emissor?: string | null) =>
   [`Série ${semZerosEsquerda(d.serie)}`, emissor ?? formatarDocEmitente(d.cnpjEmitente, d.tipoDocEmitente), d.siglaUf]
     .join(' · ');
 
+/** Abre o painel numa janela separada, para arrastar até a TV (segunda tela). */
+function abrirTv() {
+  window.open('/tv', 'painel-tv', 'popup,width=1280,height=720');
+}
+
 export function Bipar() {
-  const { usuario, nome, papel } = useSessao();
+  const { usuario } = useSessao();
+  const config = useConfig();
   const online = useOnline();
   const [aparelho] = useState(idAparelho);
   const [filtro] = useState(() => criarFiltroRepeticao());
@@ -43,11 +49,11 @@ export function Bipar() {
   const contador = useRef(0);
 
   const [mensagem, setMensagem] = useState<Mensagem | null>(null);
-  const [camera, setCamera] = useState(false);
   const [digitando, setDigitando] = useState(false);
+  const [ajustando, setAjustando] = useState(false);
   const [somOk, setSomOk] = useState(somLiberado());
 
-  // O navegador só libera o som depois de um toque ou tecla (o leitor conta como tecla).
+  // O navegador só libera o som depois de um clique ou tecla (o leitor conta como tecla).
   useEffect(() => {
     if (somOk) return;
     const liberar = () => void liberarSom().then(setSomOk);
@@ -121,49 +127,52 @@ export function Bipar() {
     fila.current = fila.current.then(() => processar(texto));
   }
 
+  const autor = { uid: usuario!.uid, aparelho };
+
   return (
     <main className="bipar">
       <header className="topo">
         <div className="topo-usuario">
-          <strong>{nome ?? usuario?.email}</strong>
+          <strong>Painel de NFs</strong>
           <span className={online ? 'conexao conexao-ok' : 'conexao conexao-off'}>
             {online ? 'Online' : 'Sem internet'}
           </span>
         </div>
         <nav className="topo-acoes">
-          {papel === 'admin' && <Link to="/admin">Admin</Link>}
-          {papel === 'admin' && <Link to="/tv">TV</Link>}
+          <button onClick={abrirTv}>Abrir TV</button>
+          <button className="botao-secundario" onClick={() => setAjustando((v) => !v)}>Ajustes</button>
           <button className="botao-secundario" onClick={() => signOut(auth)}>Sair</button>
         </nav>
       </header>
 
+      {ajustando && <Ajustes config={config} onFechar={() => setAjustando(false)} />}
+
       {!somOk && (
         <button className="ativar-som" onClick={() => void liberarSom().then(setSomOk)}>
-          Toque aqui para ativar o som
+          Clique aqui para ativar o som
         </button>
       )}
 
       <ResultadoBipagem mensagem={mensagem} />
 
-      <CampoLeitura onLer={aoLer} pausado={camera} digitando={digitando} />
+      <CampoLeitura onLer={aoLer} digitando={digitando} />
 
       <div className="bipar-acoes">
-        <button onClick={() => setCamera(true)}>Usar câmera</button>
+        <span className="ultimas-aviso">1ª bipagem: Preparação · 2ª bipagem: Em rota</span>
         <button className="botao-link" onClick={() => setDigitando((v) => !v)}>
           {digitando ? 'Voltar ao leitor' : 'Código danificado? Digitar chave'}
         </button>
       </div>
 
       <section className="bipar-ultimas">
-        <h2>Últimas bipagens neste aparelho</h2>
-        <UltimasBipagens aparelho={aparelho} />
+        <h2>Em rota na TV</h2>
+        <EmRotaNaTv autor={autor} diasEmRotaNaTv={config.diasEmRotaNaTv} />
       </section>
 
-      {camera && (
-        <Suspense fallback={<div className="camera"><p className="camera-texto">Abrindo câmera…</p></div>}>
-          <LeitorCamera onLer={aoLer} onFechar={() => setCamera(false)} />
-        </Suspense>
-      )}
+      <section className="bipar-ultimas">
+        <h2>Últimas bipagens neste computador</h2>
+        <UltimasBipagens aparelho={aparelho} />
+      </section>
     </main>
   );
 }

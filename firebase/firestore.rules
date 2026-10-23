@@ -1,22 +1,18 @@
 rules_version = '2';
-// RASCUNHO revisado: testar no Emulator antes de publicar.
+// Login: uma conta só para o painel (a mesma senha em todos os aparelhos). Não há papéis.
 //
 // Toda gravação em `notas` precisa vir junto (transação/batch) com um documento novo
 // em `eventos`. O front gera o ID do evento antes (doc(collection(db, 'eventos')).id)
 // e grava esse ID em `notas/{chave}.ultimoEventoId`.
-// Exclusão: o evento usa o ID `${ultimoEventoId}_exclusao`, porque no delete não há
-// request.resource para apontar o evento.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---------- Papéis ----------
-    function logado() { return request.auth != null; }
-    function papel() {
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.papel;
+    // Só a conta do painel: o Firebase deixa qualquer um criar conta, então não basta estar
+    // logado. Mesmo e-mail de EMAIL_PAINEL (src/lib/firebase.ts).
+    function logado() {
+      return request.auth != null
+        && request.auth.token.email == 'painel@painelmotnsp.firebaseapp.com';
     }
-    function ehAdmin() { return logado() && papel() == 'admin'; }
-    function ehOperador() { return logado() && papel() in ['admin', 'operador']; }
-    function podeLer() { return logado() && papel() in ['admin', 'operador', 'tv']; }
 
     function caminhoEvento(id) { return /databases/$(database)/documents/eventos/$(id); }
     function caminhoNota(chave) { return /databases/$(database)/documents/notas/$(chave); }
@@ -71,31 +67,22 @@ service cloud.firestore {
         && eventoNovo(chave, 'saida');
     }
 
-    // Estorno da saída: em_rota -> preparacao, removendo saidaEm/saidaPor.
-    function estorno(chave) {
+    // Baixa: em_rota -> baixada (sai da TV antes do prazo).
+    function baixa(chave) {
       let d = request.resource.data;
       return resource.data.status == 'em_rota'
-        && d.status == 'preparacao'
-        && !('saidaEm' in d)
-        && !('saidaPor' in d)
-        && alteraSo(['status', 'saidaEm', 'saidaPor', 'ultimoEventoId'])
-        && eventoNovo(chave, 'estorno');
-    }
-
-    function eventoExclusao(chave) {
-      let id = resource.data.ultimoEventoId + '_exclusao';
-      let ev = getAfter(caminhoEvento(id)).data;
-      return !exists(caminhoEvento(id))
-        && ev.chave == chave
-        && ev.tipo == 'exclusao'
-        && ev.usuario == request.auth.uid;
+        && d.status == 'baixada'
+        && d.baixadaEm == request.time
+        && d.baixadaPor == request.auth.uid
+        && alteraSo(['status', 'baixadaEm', 'baixadaPor', 'ultimoEventoId'])
+        && eventoNovo(chave, 'baixa');
     }
 
     match /notas/{chave} {
-      allow read: if podeLer();
+      allow read: if logado();
 
       // Entrada: cria em preparacao, com o próprio uid e a hora do servidor.
-      allow create: if ehOperador()
+      allow create: if logado()
         && formatoChave(chave)
         && request.resource.data.keys().hasAll(camposObrigatoriosNota())
         && request.resource.data.keys().hasOnly(camposObrigatoriosNota())
@@ -105,10 +92,10 @@ service cloud.firestore {
         && request.resource.data.recebidaEm == request.time
         && eventoNovo(chave, 'entrada');
 
-      // Saída: operador ou admin. Estorno: só admin.
-      allow update: if ehOperador() && (saida(chave) || (ehAdmin() && estorno(chave)));
+      allow update: if logado() && (saida(chave) || baixa(chave));
 
-      allow delete: if ehAdmin() && eventoExclusao(chave);
+      // Nota nunca é apagada: se apagasse, a próxima bipagem a colocaria de novo na TV.
+      allow delete: if false;
     }
 
     // ---------- Eventos (histórico imutável) ----------
@@ -116,6 +103,7 @@ service cloud.firestore {
       return d.keys().hasAll(['chave', 'tipo', 'usuario', 'aparelho', 'criadoEm'])
         && d.keys().hasOnly(['chave', 'tipo', 'usuario', 'aparelho', 'detalhe', 'criadoEm'])
         && d.chave is string && formatoChave(d.chave)
+        && d.tipo in ['entrada', 'saida', 'baixa']
         && d.usuario == request.auth.uid
         && d.aparelho is string && d.aparelho.size() > 0 && d.aparelho.size() <= 64
         && (!('detalhe' in d) || (d.detalhe is string && d.detalhe.size() <= 500))
@@ -123,22 +111,12 @@ service cloud.firestore {
     }
 
     match /eventos/{id} {
-      allow read: if ehOperador();
+      allow read: if logado();
 
-      // Cada branch testa o tipo primeiro, para só consultar a nota no caso certo.
-      allow create: if ehOperador()
+      // A nota gravada junto aponta para este evento.
+      allow create: if logado()
         && camposEventoValidos(request.resource.data)
-        && (
-          // Entrada/saída/estorno: a nota gravada junto aponta para este evento.
-          (request.resource.data.tipo in ['entrada', 'saida']
-            && getAfter(caminhoNota(request.resource.data.chave)).data.ultimoEventoId == id)
-          || (request.resource.data.tipo == 'estorno' && ehAdmin()
-            && getAfter(caminhoNota(request.resource.data.chave)).data.ultimoEventoId == id)
-          // Exclusão: a nota existia, some nesta gravação, e o ID segue a convenção.
-          || (request.resource.data.tipo == 'exclusao' && ehAdmin()
-            && id == get(caminhoNota(request.resource.data.chave)).data.ultimoEventoId + '_exclusao'
-            && !existsAfter(caminhoNota(request.resource.data.chave)))
-        );
+        && getAfter(caminhoNota(request.resource.data.chave)).data.ultimoEventoId == id;
 
       allow update, delete: if false;
     }
@@ -154,34 +132,23 @@ service cloud.firestore {
     }
 
     match /emitentes/{cnpj} {
-      allow read: if podeLer();
-      allow create, update: if ehOperador()
+      allow read: if logado();
+      allow create, update: if logado()
         && cnpj.matches('^[0-9A-Z]{12}[0-9]{2}$')
         && camposEmitenteValidos(request.resource.data);
-      allow delete: if ehAdmin();
+      allow delete: if false;
     }
 
-    // ---------- Configuração ----------
+    // ---------- Ajustes ----------
     match /config/{doc} {
-      allow read: if podeLer();
-      allow write: if ehAdmin()
+      allow read: if logado();
+      allow write: if logado()
         && doc == 'geral'
-        && request.resource.data.keys().hasOnly(['diasUrgencia', 'horasEmRotaNaTv'])
+        && request.resource.data.keys().hasOnly(['diasUrgencia', 'diasEmRotaNaTv'])
         && request.resource.data.diasUrgencia is int
         && request.resource.data.diasUrgencia >= 1 && request.resource.data.diasUrgencia <= 60
-        && request.resource.data.horasEmRotaNaTv is int
-        && request.resource.data.horasEmRotaNaTv >= 1 && request.resource.data.horasEmRotaNaTv <= 168;
-    }
-
-    // ---------- Usuários ----------
-    // O primeiro admin é criado à mão no console do Firebase.
-    match /usuarios/{uid} {
-      allow read: if logado() && (request.auth.uid == uid || ehAdmin());
-      allow delete: if ehAdmin();
-      allow create, update: if ehAdmin()
-        && request.resource.data.keys().hasOnly(['nome', 'papel'])
-        && request.resource.data.nome is string && request.resource.data.nome.size() > 0
-        && request.resource.data.papel in ['admin', 'operador', 'tv'];
+        && request.resource.data.diasEmRotaNaTv is int
+        && request.resource.data.diasEmRotaNaTv >= 1 && request.resource.data.diasEmRotaNaTv <= 30;
     }
   }
 }

@@ -3,8 +3,6 @@ import { lerChave } from '../lib/chaveAcesso';
 
 interface Props {
   onLer: (texto: string) => void;
-  /** Não puxa o foco de volta (câmera aberta, por exemplo). */
-  pausado: boolean;
   /** Mostra o teclado numérico para digitar a chave à mão. */
   digitando: boolean;
 }
@@ -13,13 +11,12 @@ interface Props {
  * Campo único da bipagem. O leitor de código de barras "digita" a chave e manda Enter
  * (ou Tab). Se não mandar, a leitura dispara ao completar uma chave válida.
  */
-export function CampoLeitura({ onLer, pausado, digitando }: Props) {
+export function CampoLeitura({ onLer, digitando }: Props) {
   const ref = useRef<HTMLInputElement>(null);
   const [valor, setValor] = useState('');
 
   // Mantém o foco no campo enquanto a tela estiver em uso.
   useEffect(() => {
-    if (pausado) return;
     const focar = () => {
       const ativo = document.activeElement;
       if (ativo === ref.current) return;
@@ -30,11 +27,11 @@ export function CampoLeitura({ onLer, pausado, digitando }: Props) {
     focar();
     const intervalo = window.setInterval(focar, 500);
     return () => window.clearInterval(intervalo);
-  }, [pausado]);
+  }, []);
 
   useEffect(() => {
-    if (!pausado) ref.current?.focus({ preventScroll: true });
-  }, [digitando, pausado]);
+    ref.current?.focus({ preventScroll: true });
+  }, [digitando]);
 
   function enviar(texto: string) {
     setValor('');

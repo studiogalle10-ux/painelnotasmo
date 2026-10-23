@@ -2,14 +2,12 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
-import { auth } from '../lib/firebase';
-import { podeAbrir, rotaInicial, useSessao } from '../lib/sessao';
+import { auth, EMAIL_PAINEL } from '../lib/firebase';
+import { useSessao } from '../lib/sessao';
 
 function mensagemErro(e: unknown): string {
   if (e instanceof FirebaseError) {
-    if (e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-email') {
-      return 'E-mail ou senha incorretos.';
-    }
+    if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') return 'Senha incorreta.';
     if (e.code === 'auth/too-many-requests') {
       return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
     }
@@ -18,18 +16,17 @@ function mensagemErro(e: unknown): string {
   return 'Não foi possível entrar. Tente de novo.';
 }
 
+/** Só a senha do painel. Depois de entrar, o aparelho fica conectado. */
 export function Login() {
-  const { carregando, usuario, papel } = useSessao();
+  const { carregando, usuario } = useSessao();
   const local = useLocation();
-  const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  if (!carregando && usuario && papel) {
-    // Volta para a tela que pediu o login só se este usuário puder abri-la.
+  if (!carregando && usuario) {
     const de = (local.state as { de?: string } | null)?.de;
-    return <Navigate to={de && podeAbrir(papel, de) ? de : rotaInicial(papel)} replace />;
+    return <Navigate to={de === '/tv' ? '/tv' : '/bipar'} replace />;
   }
 
   async function entrar(e: FormEvent) {
@@ -37,7 +34,7 @@ export function Login() {
     setErro(null);
     setEnviando(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), senha);
+      await signInWithEmailAndPassword(auth, EMAIL_PAINEL, senha);
     } catch (err) {
       setErro(mensagemErro(err));
     } finally {
@@ -49,21 +46,15 @@ export function Login() {
     <main className="login">
       <h1>Painel de NFs</h1>
       <form onSubmit={entrar}>
+        <input type="email" autoComplete="username" value={EMAIL_PAINEL} readOnly hidden />
         <label>
-          E-mail
-          <input type="email" autoComplete="username" value={email}
-            onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Senha
-          <input type="password" autoComplete="current-password" value={senha}
+          Senha do painel
+          <input type="password" autoComplete="current-password" value={senha} autoFocus
             onChange={(e) => setSenha(e.target.value)} required />
         </label>
         {erro && <p className="erro">{erro}</p>}
-        {usuario && !papel && !carregando && (
-          <p className="erro">Usuário sem papel cadastrado. Fale com o administrador.</p>
-        )}
         <button type="submit" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
+        <p className="login-dica">Digite só uma vez: este computador fica conectado.</p>
       </form>
     </main>
   );

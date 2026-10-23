@@ -24,3 +24,6 @@ if (usandoEmulador) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
 }
+
+/** Conta única do painel: a tela de login só pede a senha. As regras do Firestore só aceitam ela. */
+export const EMAIL_PAINEL = 'painel@painelmotnsp.firebaseapp.com';

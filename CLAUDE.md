@@ -19,7 +19,7 @@ Sistema web para registrar NF-e só por bipagem do código de barras do DANFE e 
 - Entrada/saída sempre via transação do Firestore.
 - Datas como Timestamp do Firestore; exibir em America/Sao_Paulo.
 - Toda ação gera documento em `eventos`.
-- Segurança pelas Firestore Security Rules (papéis em `usuarios/{uid}`).
+- Segurança pelas Firestore Security Rules: só a conta única do painel (`EMAIL_PAINEL`) lê e grava. Sem admin nem papéis.
 - Antes de cada etapa, apresente o plano e aguarde confirmação.
 
 ## Rascunhos incluídos (revisar antes de usar)

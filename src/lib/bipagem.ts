@@ -2,7 +2,6 @@
 // (as regras do Firestore recusam a nota sem o evento; ver firebase/firestore.rules).
 import {
   collection,
-  deleteField,
   doc,
   runTransaction,
   serverTimestamp,
@@ -22,19 +21,18 @@ export type ResultadoBipagem =
   | { tipo: 'ja_despachada'; dados: ChaveNFe; saidaEm: Date | null }
   | { tipo: 'invalida'; erro: string };
 
-function evento(chave: string, tipo: TipoEvento, autor: Autor, detalhe?: string) {
+function evento(chave: string, tipo: TipoEvento, autor: Autor) {
   return {
     chave,
     tipo,
     usuario: autor.uid,
     aparelho: autor.aparelho,
     criadoEm: serverTimestamp(),
-    ...(detalhe ? { detalhe } : {}),
   };
 }
 
 /**
- * Bipagem (tela única): 1ª leitura cria em preparação, 2ª dá saída, 3ª só avisa.
+ * Bipagem: 1ª leitura cria em preparação, 2ª dá saída, depois só avisa (em rota ou baixada).
  * Chave inválida volta sem gravar nada. Erros do Firestore (sem permissão, sem conexão)
  * são lançados para a tela tratar.
  */
@@ -88,13 +86,8 @@ export async function biparNota(
   });
 }
 
-/** Admin: desfaz a saída (em rota → preparação). A data de recebimento não muda. */
-export async function estornarSaida(
-  db: Firestore,
-  chave: string,
-  autor: Autor,
-  detalhe?: string,
-): Promise<void> {
+/** Tira da TV uma nota em rota antes do prazo. */
+export async function darBaixa(db: Firestore, chave: string, autor: Autor): Promise<void> {
   const refNota = doc(db, 'notas', chave);
   await runTransaction(db, async (t) => {
     const snap = await t.get(refNota);
@@ -103,30 +96,11 @@ export async function estornarSaida(
 
     const refEvento = doc(collection(db, 'eventos'));
     t.update(refNota, {
-      status: 'preparacao',
-      saidaEm: deleteField(),
-      saidaPor: deleteField(),
+      status: 'baixada',
+      baixadaEm: serverTimestamp(),
+      baixadaPor: autor.uid,
       ultimoEventoId: refEvento.id,
     });
-    t.set(refEvento, evento(chave, 'estorno', autor, detalhe));
-  });
-}
-
-/** Admin: apaga a nota. O evento usa o ID `${ultimoEventoId}_exclusao` (exigido pelas regras). */
-export async function excluirNota(
-  db: Firestore,
-  chave: string,
-  autor: Autor,
-  detalhe?: string,
-): Promise<void> {
-  const refNota = doc(db, 'notas', chave);
-  await runTransaction(db, async (t) => {
-    const snap = await t.get(refNota);
-    if (!snap.exists()) throw new Error('Nota não encontrada.');
-
-    const nota = snap.data() as Nota;
-    t.set(doc(db, 'eventos', `${nota.ultimoEventoId}_exclusao`),
-      evento(chave, 'exclusao', autor, detalhe));
-    t.delete(refNota);
+    t.set(refEvento, evento(chave, 'baixa', autor));
   });
 }

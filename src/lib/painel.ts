@@ -33,11 +33,11 @@ export const ALTURA_CARTAO_VH: Record<TipoColuna, number> = {
   em_rota: 8.5,
 };
 
-const HORA_MS = 60 * 60 * 1000;
+const DIA_MS = 24 * 60 * 60 * 1000;
 
 export function separarColunas(notas: NotaPainel[], agora: Date, config: Config): Colunas {
   const colunas: Colunas = { preparacao: [], urgencia: [], emRota: [] };
-  const limiteEmRota = agora.getTime() - config.horasEmRotaNaTv * HORA_MS;
+  const limiteEmRota = agora.getTime() - config.diasEmRotaNaTv * DIA_MS;
 
   for (const nota of notas) {
     const dias = diasDesde(nota.recebidaEm, agora);

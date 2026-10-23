@@ -16,10 +16,11 @@ import { formatarDataExtenso, formatarHora } from '../lib/datas';
 import { nomeExibicao } from '../lib/emitentes';
 import { separarColunas, type NotaPainel } from '../lib/painel';
 import { useOnline } from '../lib/conexao';
+import { useConfig } from '../lib/config';
 import { ColunaTv } from '../componentes/ColunaTv';
-import { CONFIG_PADRAO, type Config, type Emitente, type Nota } from '../tipos/firestore';
+import type { Emitente, Nota } from '../tipos/firestore';
 
-const HORA_MS = 60 * 60 * 1000;
+const DIA_MS = 24 * 60 * 60 * 1000;
 const TROCA_PAGINA_MS = 10_000;
 const RECALCULO_MS = 60_000;
 const RECARGA_MS = 30 * 60_000;
@@ -55,7 +56,7 @@ function Relogio() {
 
 export function Tv() {
   const online = useOnline();
-  const [config, setConfig] = useState<Config>(CONFIG_PADRAO);
+  const config = useConfig();
   const [preparacao, setPreparacao] = useState<NotaPainel[]>([]);
   const [emRota, setEmRota] = useState<NotaPainel[]>([]);
   const [doCache, setDoCache] = useState({ preparacao: true, emRota: true });
@@ -66,13 +67,7 @@ export function Tv() {
   const [nomes, setNomes] = useState<Record<string, string>>({});
   const nomesBuscados = useRef(new Set<string>());
 
-  const falhou = () => setErro('Sem acesso aos dados. Confira o login da TV.');
-
-  useEffect(() => onSnapshot(
-    doc(db, 'config', 'geral'),
-    (s) => setConfig(s.exists() ? { ...CONFIG_PADRAO, ...(s.data() as Partial<Config>) } : CONFIG_PADRAO),
-    () => {}, // Sem a config, segue com o padrão.
-  ), []);
+  const falhou = () => setErro('Sem acesso aos dados. Entre de novo com a senha do painel.');
 
   useEffect(() => onSnapshot(
     query(collection(db, 'notas'), where('status', '==', 'preparacao'), orderBy('recebidaEm')),
@@ -88,7 +83,7 @@ export function Tv() {
 
   // A janela de "Em rota" é fixada ao assinar; o recorte exato é refeito a cada minuto.
   useEffect(() => {
-    const inicio = Timestamp.fromMillis(Date.now() - config.horasEmRotaNaTv * HORA_MS);
+    const inicio = Timestamp.fromMillis(Date.now() - config.diasEmRotaNaTv * DIA_MS);
     return onSnapshot(
       query(collection(db, 'notas'), where('status', '==', 'em_rota'),
         where('saidaEm', '>=', inicio), orderBy('saidaEm', 'desc')),
@@ -101,7 +96,7 @@ export function Tv() {
       },
       falhou,
     );
-  }, [config.horasEmRotaNaTv]);
+  }, [config.diasEmRotaNaTv]);
 
   useEffect(() => {
     const recalculo = window.setInterval(() => setAgora(new Date()), RECALCULO_MS);
@@ -170,7 +165,8 @@ export function Tv() {
   const estado = !online ? 'Sem internet' : reconectando ? 'Reconectando…' : 'Online';
 
   return (
-    <main className="tv">
+    // Um clique na TV liga a tela cheia (o navegador só deixa com um clique).
+    <main className="tv" onClick={() => { if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {}); }}>
       <header className="tv-topo">
         <div className="tv-marca">
           <strong>MO Transportes</strong>
@@ -191,7 +187,7 @@ export function Tv() {
         <ColunaTv titulo="Urgência" coluna="urgencia" itens={colunas.urgencia}
           contador={contador} nomes={nomes} vazio={`Nenhuma nota com ${config.diasUrgencia}+ dias`} />
         <ColunaTv titulo="Em rota" coluna="em_rota" itens={colunas.emRota}
-          contador={contador} nomes={nomes} vazio={`Nenhuma saída nas últimas ${config.horasEmRotaNaTv} h`} />
+          contador={contador} nomes={nomes} vazio="Nenhuma nota em rota" />
       </div>
     </main>
   );

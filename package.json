@@ -15,8 +15,6 @@
     "deploy": "npm run build && firebase deploy"
   },
   "dependencies": {
-    "@zxing/browser": "^0.2.1",
-    "@zxing/library": "^0.23.0",
     "firebase": "^13.1.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
