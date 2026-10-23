@@ -4,6 +4,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth, EMAIL_PAINEL } from '../lib/firebase';
 import { useSessao } from '../lib/sessao';
+import { Rodape } from '../componentes/Rodape';
 
 function mensagemErro(e: unknown): string {
   if (e instanceof FirebaseError) {
@@ -44,6 +45,7 @@ export function Login() {
 
   return (
     <main className="login">
+      <img className="logo logo-login" src="/logo-mo.png" alt="MO Transportes" />
       <h1>Painel de NFs</h1>
       <form onSubmit={entrar}>
         <input type="email" autoComplete="username" value={EMAIL_PAINEL} readOnly hidden />
@@ -56,6 +58,7 @@ export function Login() {
         <button type="submit" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
         <p className="login-dica">Digite só uma vez: este computador fica conectado.</p>
       </form>
+      <Rodape />
     </main>
   );
 }

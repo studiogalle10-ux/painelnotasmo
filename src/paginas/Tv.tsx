@@ -18,6 +18,7 @@ import { separarColunas, type NotaPainel } from '../lib/painel';
 import { useOnline } from '../lib/conexao';
 import { useConfig } from '../lib/config';
 import { ColunaTv } from '../componentes/ColunaTv';
+import { Rodape } from '../componentes/Rodape';
 import type { Emitente, Nota } from '../tipos/firestore';
 
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -169,7 +170,7 @@ export function Tv() {
     <main className="tv" onClick={() => { if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {}); }}>
       <header className="tv-topo">
         <div className="tv-marca">
-          <strong>MO Transportes</strong>
+          <img className="logo logo-tv" src="/logo-mo.png" alt="MO Transportes" />
           <span>Painel de NFs</span>
         </div>
         <Relogio />
@@ -189,6 +190,7 @@ export function Tv() {
         <ColunaTv titulo="Em rota" coluna="em_rota" itens={colunas.emRota}
           contador={contador} nomes={nomes} vazio="Nenhuma nota em rota" />
       </div>
+      <Rodape tv />
     </main>
   );
 }

@@ -17,6 +17,7 @@ import { CampoLeitura } from '../componentes/CampoLeitura';
 import { EmRotaNaTv } from '../componentes/EmRotaNaTv';
 import { ResultadoBipagem, type Mensagem } from '../componentes/ResultadoBipagem';
 import { UltimasBipagens } from '../componentes/UltimasBipagens';
+import { Rodape } from '../componentes/Rodape';
 
 function mensagemFalha(e: unknown): string {
   if (!navigator.onLine) return 'Sem internet. Bipe de novo quando a conexão voltar.';
@@ -133,6 +134,7 @@ export function Bipar() {
     <main className="bipar">
       <header className="topo">
         <div className="topo-usuario">
+          <img className="logo logo-bipar" src="/logo-mo.png" alt="MO Transportes" />
           <strong>Painel de NFs</strong>
           <span className={online ? 'conexao conexao-ok' : 'conexao conexao-off'}>
             {online ? 'Online' : 'Sem internet'}
@@ -173,6 +175,7 @@ export function Bipar() {
         <h2>Últimas bipagens neste computador</h2>
         <UltimasBipagens aparelho={aparelho} />
       </section>
+      <Rodape />
     </main>
   );
 }
