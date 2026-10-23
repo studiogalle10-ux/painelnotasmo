@@ -19,6 +19,17 @@ export const SessaoContexto = createContext<Sessao>({
 
 export const useSessao = () => useContext(SessaoContexto);
 
+/** Quem abre cada tela protegida. */
+export const PAPEIS_POR_ROTA: Record<string, Papel[]> = {
+  '/bipar': ['operador', 'admin'],
+  '/tv': ['tv', 'admin'],
+  '/admin': ['admin'],
+};
+
+export function podeAbrir(papel: Papel | null, rota: string): boolean {
+  return !!papel && (PAPEIS_POR_ROTA[rota]?.includes(papel) ?? false);
+}
+
 /** Tela inicial de cada papel. */
 export function rotaInicial(papel: Papel | null): string {
   if (papel === 'tv') return '/tv';

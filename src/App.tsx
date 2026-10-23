@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ProvedorSessao } from './componentes/ProvedorSessao';
 import { RotaProtegida } from './componentes/RotaProtegida';
-import { rotaInicial, useSessao } from './lib/sessao';
+import { PAPEIS_POR_ROTA, rotaInicial, useSessao } from './lib/sessao';
 import { Login } from './paginas/Login';
 
 // Cada tela é baixada só quando usada: a TV não carrega o código do admin nem da câmera.
@@ -27,13 +27,13 @@ export default function App() {
             <Route path="/" element={<Inicio />} />
             <Route path="/login" element={<Login />} />
             <Route path="/bipar" element={
-              <RotaProtegida papeis={['operador', 'admin']}><Bipar /></RotaProtegida>
+              <RotaProtegida papeis={PAPEIS_POR_ROTA['/bipar']}><Bipar /></RotaProtegida>
             } />
             <Route path="/tv" element={
-              <RotaProtegida papeis={['tv', 'admin']}><Tv /></RotaProtegida>
+              <RotaProtegida papeis={PAPEIS_POR_ROTA['/tv']}><Tv /></RotaProtegida>
             } />
             <Route path="/admin" element={
-              <RotaProtegida papeis={['admin']}><Admin /></RotaProtegida>
+              <RotaProtegida papeis={PAPEIS_POR_ROTA['/admin']}><Admin /></RotaProtegida>
             } />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

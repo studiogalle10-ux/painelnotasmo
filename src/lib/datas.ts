@@ -23,3 +23,26 @@ const MS_DIA = 24 * 60 * 60 * 1000;
 export function diasDesde(d: Date, agora: Date = new Date()): number {
   return Math.max(0, Math.floor((agora.getTime() - d.getTime()) / MS_DIA));
 }
+
+const fmtDiaHora = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: FUSO,
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const fmtExtenso = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: FUSO,
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
+
+/** 20/10 09:15 */
+export function formatarDiaHora(d: Date): string {
+  const p = Object.fromEntries(fmtDiaHora.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.day}/${p.month} ${p.hour}:${p.minute}`;
+}
+
+/** sexta-feira, 23 de outubro */
+export const formatarDataExtenso = (d: Date) => fmtExtenso.format(d);

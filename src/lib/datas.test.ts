@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { diasDesde, formatarData, formatarDataHora, formatarHora } from './datas';
+import {
+  diasDesde,
+  formatarData,
+  formatarDataExtenso,
+  formatarDataHora,
+  formatarDiaHora,
+  formatarHora,
+} from './datas';
 
 // São Paulo está em UTC−3 o ano todo (sem horário de verão desde 2019). As datas abaixo
 // são em UTC, então o resultado não depende do fuso do computador que roda o teste.
@@ -39,5 +46,16 @@ describe('diasDesde', () => {
 
   it('nunca fica negativo (relógio do aparelho atrasado)', () => {
     expect(diasDesde(bipagem, depois(0, -2))).toBe(0);
+  });
+});
+
+describe('formatos da TV', () => {
+  it('dia e hora curtos no fuso de São Paulo', () => {
+    expect(formatarDiaHora(new Date('2026-10-20T12:15:00Z'))).toBe('20/10 09:15');
+    expect(formatarDiaHora(new Date('2026-10-24T02:00:00Z'))).toBe('23/10 23:00');
+  });
+
+  it('data por extenso', () => {
+    expect(formatarDataExtenso(new Date('2026-10-23T13:00:00Z'))).toBe('sexta-feira, 23 de outubro');
   });
 });

@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { auth } from '../lib/firebase';
-import { rotaInicial, useSessao } from '../lib/sessao';
+import { podeAbrir, rotaInicial, useSessao } from '../lib/sessao';
 
 function mensagemErro(e: unknown): string {
   if (e instanceof FirebaseError) {
@@ -27,8 +27,9 @@ export function Login() {
   const [enviando, setEnviando] = useState(false);
 
   if (!carregando && usuario && papel) {
+    // Volta para a tela que pediu o login só se este usuário puder abri-la.
     const de = (local.state as { de?: string } | null)?.de;
-    return <Navigate to={de ?? rotaInicial(papel)} replace />;
+    return <Navigate to={de && podeAbrir(papel, de) ? de : rotaInicial(papel)} replace />;
   }
 
   async function entrar(e: FormEvent) {
