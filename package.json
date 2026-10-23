@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest",
-    "test:emulador": "firebase emulators:exec --only firestore --project demo-painel-nf-mo \"vitest run --config vitest.emulador.config.ts\"",
+    "test:emulador": "firebase emulators:exec --only auth,firestore --project demo-painel-nf-mo \"vitest run --config vitest.emulador.config.ts\"",
     "emuladores": "firebase emulators:start --only auth,firestore --project demo-painel-nf-mo",
     "emuladores:semear": "node scripts/semear-emulador.mjs",
     "deploy": "npm run build && firebase deploy"

@@ -26,7 +26,7 @@ export function Login() {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  if (!carregando && usuario && papel) {
+  if (!carregando && usuario && papel && papel !== 'inativo') {
     // Volta para a tela que pediu o login só se este usuário puder abri-la.
     const de = (local.state as { de?: string } | null)?.de;
     return <Navigate to={de && podeAbrir(papel, de) ? de : rotaInicial(papel)} replace />;
@@ -62,6 +62,9 @@ export function Login() {
         {erro && <p className="erro">{erro}</p>}
         {usuario && !papel && !carregando && (
           <p className="erro">Usuário sem papel cadastrado. Fale com o administrador.</p>
+        )}
+        {usuario && papel === 'inativo' && !carregando && (
+          <p className="erro">Seu acesso foi retirado. Fale com o administrador.</p>
         )}
         <button type="submit" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
       </form>

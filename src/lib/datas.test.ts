@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  dataIsoSP,
   diasDesde,
   formatarData,
   formatarDataExtenso,
   formatarDataHora,
   formatarDiaHora,
   formatarHora,
+  inicioDoDiaSP,
 } from './datas';
 
 // São Paulo está em UTC−3 o ano todo (sem horário de verão desde 2019). As datas abaixo
@@ -57,5 +59,16 @@ describe('formatos da TV', () => {
 
   it('data por extenso', () => {
     expect(formatarDataExtenso(new Date('2026-10-23T13:00:00Z'))).toBe('sexta-feira, 23 de outubro');
+  });
+});
+
+describe('datas dos filtros', () => {
+  it('dataIsoSP usa o dia de São Paulo', () => {
+    expect(dataIsoSP(new Date('2026-10-23T13:00:00Z'))).toBe('2026-10-23');
+    expect(dataIsoSP(new Date('2026-10-24T02:00:00Z'))).toBe('2026-10-23');
+  });
+
+  it('inicioDoDiaSP é meia-noite de São Paulo', () => {
+    expect(inicioDoDiaSP('2026-10-23').toISOString()).toBe('2026-10-23T03:00:00.000Z');
   });
 });

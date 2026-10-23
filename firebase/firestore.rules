@@ -166,22 +166,32 @@ service cloud.firestore {
       allow read: if podeLer();
       allow write: if ehAdmin()
         && doc == 'geral'
-        && request.resource.data.keys().hasOnly(['diasUrgencia', 'horasEmRotaNaTv'])
+        && request.resource.data.keys().hasOnly(
+             ['diasUrgencia', 'horasEmRotaNaTv', 'atualizadoEm', 'atualizadoPor'])
         && request.resource.data.diasUrgencia is int
         && request.resource.data.diasUrgencia >= 1 && request.resource.data.diasUrgencia <= 60
         && request.resource.data.horasEmRotaNaTv is int
-        && request.resource.data.horasEmRotaNaTv >= 1 && request.resource.data.horasEmRotaNaTv <= 168;
+        && request.resource.data.horasEmRotaNaTv >= 1 && request.resource.data.horasEmRotaNaTv <= 168
+        // Quem alterou e quando (opcionais, mas sempre verdadeiros).
+        && (!('atualizadoEm' in request.resource.data) || request.resource.data.atualizadoEm == request.time)
+        && (!('atualizadoPor' in request.resource.data) || request.resource.data.atualizadoPor == request.auth.uid);
     }
 
     // ---------- Usuários ----------
     // O primeiro admin é criado à mão no console do Firebase.
+    // "inativo" = acesso retirado (o login continua existindo, mas não lê nem grava nada).
     match /usuarios/{uid} {
       allow read: if logado() && (request.auth.uid == uid || ehAdmin());
-      allow delete: if ehAdmin();
+      // O admin não apaga nem rebaixa a si mesmo, para ninguém se trancar fora do sistema.
+      allow delete: if ehAdmin() && uid != request.auth.uid;
       allow create, update: if ehAdmin()
-        && request.resource.data.keys().hasOnly(['nome', 'papel'])
+        && request.resource.data.keys().hasOnly(['nome', 'papel', 'email'])
         && request.resource.data.nome is string && request.resource.data.nome.size() > 0
-        && request.resource.data.papel in ['admin', 'operador', 'tv'];
+        && request.resource.data.nome.size() <= 100
+        && request.resource.data.papel in ['admin', 'operador', 'tv', 'inativo']
+        && (!('email' in request.resource.data)
+            || (request.resource.data.email is string && request.resource.data.email.size() <= 200))
+        && (uid != request.auth.uid || request.resource.data.papel == 'admin');
     }
   }
 }

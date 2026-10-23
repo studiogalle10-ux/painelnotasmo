@@ -58,7 +58,7 @@ await env.clearFirestore();
 await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();
   for (const u of USUARIOS) {
-    await setDoc(doc(db, 'usuarios', u.uid), { nome: u.nome, papel: u.papel });
+    await setDoc(doc(db, 'usuarios', u.uid), { nome: u.nome, papel: u.papel, email: u.email });
   }
   await setDoc(doc(db, 'config', 'geral'), { diasUrgencia: 5, horasEmRotaNaTv: 24 });
   await setDoc(doc(db, 'emitentes', '11222333000181'), {

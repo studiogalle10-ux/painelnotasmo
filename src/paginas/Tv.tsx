@@ -1,43 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Timestamp,
   collection,
   doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
   where,
-  type QuerySnapshot,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { lerChave } from '../lib/chaveAcesso';
 import { formatarDataExtenso, formatarHora } from '../lib/datas';
-import { nomeExibicao } from '../lib/emitentes';
 import { separarColunas, type NotaPainel } from '../lib/painel';
 import { useOnline } from '../lib/conexao';
+import { useNomesEmitentes } from '../lib/nomesEmitentes';
+import { paraNotas } from '../lib/notasFirestore';
 import { ColunaTv } from '../componentes/ColunaTv';
-import { CONFIG_PADRAO, type Config, type Emitente, type Nota } from '../tipos/firestore';
+import { CONFIG_PADRAO, type Config } from '../tipos/firestore';
 
 const HORA_MS = 60 * 60 * 1000;
 const TROCA_PAGINA_MS = 10_000;
 const RECALCULO_MS = 60_000;
 const RECARGA_MS = 30 * 60_000;
-
-function paraNotas(snap: QuerySnapshot): NotaPainel[] {
-  return snap.docs.flatMap((d) => {
-    const lida = lerChave(d.id);
-    if (!lida.ok) return [];
-    // Gravação recém-feita ainda sem hora do servidor: usa a estimativa local.
-    const n = d.data({ serverTimestamps: 'estimate' }) as Nota;
-    return [{
-      dados: lida.dados,
-      status: n.status,
-      recebidaEm: n.recebidaEm.toDate(),
-      saidaEm: n.saidaEm?.toDate() ?? null,
-    }];
-  });
-}
 
 function Relogio() {
   const [agora, setAgora] = useState(() => new Date());
@@ -63,8 +46,6 @@ export function Tv() {
   const [erro, setErro] = useState<string | null>(null);
   const [agora, setAgora] = useState(() => new Date());
   const [contador, setContador] = useState(0);
-  const [nomes, setNomes] = useState<Record<string, string>>({});
-  const nomesBuscados = useRef(new Set<string>());
 
   const falhou = () => setErro('Sem acesso aos dados. Confira o login da TV.');
 
@@ -151,20 +132,8 @@ export function Tv() {
     [preparacao, emRota, agora, config],
   );
 
-  // Nomes dos emissores: a TV só lê o cache (quem grava é o operador, ao bipar).
-  useEffect(() => {
-    for (const n of [...preparacao, ...emRota]) {
-      const cnpj = n.dados.cnpjEmitente;
-      if (n.dados.tipoDocEmitente !== 'cnpj' || nomesBuscados.current.has(cnpj)) continue;
-      nomesBuscados.current.add(cnpj);
-      getDoc(doc(db, 'emitentes', cnpj))
-        .then((s) => {
-          if (s.exists()) setNomes((m) => ({ ...m, [cnpj]: nomeExibicao(s.data() as Emitente) }));
-          else nomesBuscados.current.delete(cnpj); // Tenta de novo quando a lista mudar.
-        })
-        .catch(() => nomesBuscados.current.delete(cnpj));
-    }
-  }, [preparacao, emRota]);
+  const todas = useMemo(() => [...preparacao, ...emRota], [preparacao, emRota]);
+  const nomes = useNomesEmitentes(todas);
 
   const reconectando = doCache.preparacao || doCache.emRota;
   const estado = !online ? 'Sem internet' : reconectando ? 'Reconectando…' : 'Online';

@@ -1,7 +1,8 @@
 // Formato dos documentos no Firestore (ver docs/especificacao.md, seção 6).
 import type { Timestamp } from 'firebase/firestore';
 
-export type Papel = 'admin' | 'operador' | 'tv';
+/** "inativo" = acesso retirado: o login existe, mas não lê nem grava nada. */
+export type Papel = 'admin' | 'operador' | 'tv' | 'inativo';
 
 /** Urgência não é status: é calculada no front a partir de recebidaEm. */
 export type StatusNota = 'preparacao' | 'em_rota';
@@ -48,6 +49,8 @@ export interface Emitente {
 export interface Config {
   diasUrgencia: number;
   horasEmRotaNaTv: number;
+  atualizadoEm?: Timestamp;
+  atualizadoPor?: string;
 }
 
 export const CONFIG_PADRAO: Config = { diasUrgencia: 5, horasEmRotaNaTv: 24 };
@@ -56,4 +59,6 @@ export const CONFIG_PADRAO: Config = { diasUrgencia: 5, horasEmRotaNaTv: 24 };
 export interface Usuario {
   nome: string;
   papel: Papel;
+  /** Cópia do e-mail do login, para o admin ver a lista (o navegador não lê o Auth de outros). */
+  email?: string;
 }

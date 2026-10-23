@@ -368,6 +368,36 @@ describe('regras: config, emitentes e usuários', () => {
     await assertFails(setDoc(doc(banco('tv'), 'emitentes', '02745352000100'), valido));
   });
 
+  it('config: aceita quem alterou e quando, se forem verdadeiros', async () => {
+    await assertSucceeds(setDoc(doc(banco('admin'), 'config', 'geral'),
+      { diasUrgencia: 5, horasEmRotaNaTv: 24, atualizadoEm: serverTimestamp(), atualizadoPor: 'admin' }));
+    await assertFails(setDoc(doc(banco('admin'), 'config', 'geral'),
+      { diasUrgencia: 5, horasEmRotaNaTv: 24, atualizadoEm: serverTimestamp(), atualizadoPor: 'op' }));
+    await assertFails(setDoc(doc(banco('admin'), 'config', 'geral'), {
+      diasUrgencia: 5, horasEmRotaNaTv: 24,
+      atualizadoEm: Timestamp.fromDate(new Date('2026-01-01T12:00:00Z')), atualizadoPor: 'admin',
+    }));
+  });
+
+  it('usuários: admin não rebaixa nem apaga a si mesmo, mas pode mexer nos outros', async () => {
+    await assertFails(updateDoc(doc(banco('admin'), 'usuarios', 'admin'), { papel: 'operador' }));
+    await assertFails(deleteDoc(doc(banco('admin'), 'usuarios', 'admin')));
+    await assertSucceeds(updateDoc(doc(banco('admin'), 'usuarios', 'admin'), { nome: 'Admin Novo' }));
+    await assertSucceeds(updateDoc(doc(banco('admin'), 'usuarios', 'op2'), { papel: 'inativo' }));
+    await assertSucceeds(setDoc(doc(banco('admin'), 'usuarios', 'novo'),
+      { nome: 'Novo', papel: 'tv', email: 'novo@teste.local' }));
+  });
+
+  it('usuários: quem está sem acesso (inativo) não lê nem grava nada', async () => {
+    await biparNota(banco('op'), CHAVE, autor('op'));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore() as unknown as Firestore, 'usuarios', 'op2'),
+        { nome: 'Operador 2', papel: 'inativo' });
+    });
+    await assertFails(getDoc(doc(banco('op2'), 'notas', CHAVE)));
+    await assertFails(biparNota(banco('op2'), OUTRA_CHAVE, autor('op2')));
+  });
+
   it('usuários: operador não se promove; admin define papéis válidos', async () => {
     await assertFails(updateDoc(doc(banco('op'), 'usuarios', 'op'), { papel: 'admin' }));
     await assertSucceeds(getDoc(doc(banco('op'), 'usuarios', 'op')));

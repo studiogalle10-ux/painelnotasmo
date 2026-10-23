@@ -46,3 +46,19 @@ export function formatarDiaHora(d: Date): string {
 
 /** sexta-feira, 23 de outubro */
 export const formatarDataExtenso = (d: Date) => fmtExtenso.format(d);
+
+const fmtIso = new Intl.DateTimeFormat('en-CA', {
+  timeZone: FUSO,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/** Data no formato AAAA-MM-DD (o do <input type="date">), no fuso de São Paulo. */
+export const dataIsoSP = (d: Date) => fmtIso.format(d);
+
+/**
+ * Meia-noite em São Paulo do dia AAAA-MM-DD. São Paulo está em UTC−3 o ano todo
+ * (sem horário de verão desde 2019).
+ */
+export const inicioDoDiaSP = (iso: string) => new Date(`${iso}T00:00:00-03:00`);

@@ -61,6 +61,18 @@ export function separarColunas(notas: NotaPainel[], agora: Date, config: Config)
   return colunas;
 }
 
+/** Situação para o admin: igual à TV, mas nota em rota continua "em rota" depois das 24 h. */
+export function situacaoNota(nota: NotaPainel, agora: Date, config: Config): TipoColuna {
+  if (nota.status === 'em_rota') return 'em_rota';
+  return diasDesde(nota.recebidaEm, agora) >= config.diasUrgencia ? 'urgencia' : 'preparacao';
+}
+
+export const ROTULO_SITUACAO: Record<TipoColuna, string> = {
+  preparacao: 'Preparação',
+  urgencia: 'Urgência',
+  em_rota: 'Em rota',
+};
+
 export function textoDias(dias: number): string {
   if (dias <= 0) return 'hoje';
   return dias === 1 ? '1 dia' : `${dias} dias`;
