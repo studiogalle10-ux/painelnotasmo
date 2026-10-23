@@ -1,0 +1,27 @@
+# Painel de NFs — MO Transportes
+
+Sistema web para registrar NF-e só por bipagem do código de barras do DANFE e exibir num painel na TV do galpão.
+
+## Leia primeiro
+- `docs/especificacao.md` — especificação completa (regras, telas, dados).
+- `docs/prompt-inicial.md` — ordem de trabalho.
+
+## Stack
+- React + Vite + TypeScript
+- Firebase: Firestore (banco + tempo real), Authentication (login), Hosting (site)
+- Plano Spark (gratuito). NÃO usar Cloud Functions: exigem o plano Blaze (pago).
+
+## Regras do projeto
+- Interface e mensagens em português do Brasil.
+- Regra de ouro: nenhum preenchimento manual para registrar nota. Bipou, entrou.
+- "Urgência" é calculada no front (status `preparacao` + dias desde `recebidaEm` >= `diasUrgencia`), nunca gravada.
+- A chave de acesso (44 caracteres) é o ID do documento em `notas` — garante que a nota não duplica.
+- Entrada/saída sempre via transação do Firestore.
+- Datas como Timestamp do Firestore; exibir em America/Sao_Paulo.
+- Toda ação gera documento em `eventos`.
+- Segurança pelas Firestore Security Rules (papéis em `usuarios/{uid}`).
+- Antes de cada etapa, apresente o plano e aguarde confirmação.
+
+## Rascunhos incluídos (revisar antes de usar)
+- `firebase/firestore.rules` — regras de segurança.
+- `src/lib/chaveAcesso.ts` — parser e validação da chave de 44 dígitos.
