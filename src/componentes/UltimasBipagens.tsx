@@ -14,7 +14,9 @@ import type { Evento, TipoEvento } from '../tipos/firestore';
 const ROTULO: Record<TipoEvento, string> = {
   entrada: 'Entrada',
   saida: 'Saída',
-  baixa: 'Baixa',
+  destino: 'Destino',
+  ocorrencia: 'Ocorrência',
+  resolucao: 'Resolvida',
 };
 
 interface Linha {

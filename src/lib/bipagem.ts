@@ -2,10 +2,13 @@
 // (as regras do Firestore recusam a nota sem o evento; ver firebase/firestore.rules).
 import {
   collection,
+  deleteField,
   doc,
   runTransaction,
   serverTimestamp,
+  type DocumentReference,
   type Firestore,
+  type Transaction,
 } from 'firebase/firestore';
 import { lerChave, type ChaveNFe } from './chaveAcesso';
 import type { Nota, TipoEvento } from '../tipos/firestore';
@@ -21,18 +24,19 @@ export type ResultadoBipagem =
   | { tipo: 'ja_despachada'; dados: ChaveNFe; saidaEm: Date | null }
   | { tipo: 'invalida'; erro: string };
 
-function evento(chave: string, tipo: TipoEvento, autor: Autor) {
+function evento(chave: string, tipo: TipoEvento, autor: Autor, detalhe?: string) {
   return {
     chave,
     tipo,
     usuario: autor.uid,
     aparelho: autor.aparelho,
     criadoEm: serverTimestamp(),
+    ...(detalhe ? { detalhe: detalhe.slice(0, 500) } : {}),
   };
 }
 
 /**
- * Bipagem: 1ª leitura cria em preparação, 2ª dá saída, depois só avisa (em rota ou baixada).
+ * Bipagem: 1ª leitura cria a nota no galpão, 2ª dá saída, depois só avisa que já saiu.
  * Chave inválida volta sem gravar nada. Erros do Firestore (sem permissão, sem conexão)
  * são lançados para a tela tratar.
  */
@@ -86,21 +90,64 @@ export async function biparNota(
   });
 }
 
-/** Tira da TV uma nota em rota antes do prazo. */
-export async function darBaixa(db: Firestore, chave: string, autor: Autor): Promise<void> {
+export interface Destino {
+  cidade: string;
+  uf: string;
+  /** Código do município no IBGE. */
+  ibge: number;
+}
+
+export const textoDestino = (d: { cidade: string; uf: string }) => `${d.cidade} – ${d.uf}`;
+
+/** Lê a nota dentro da transação; só mexe em nota que ainda está no galpão. */
+async function notaNoGalpao(t: Transaction, refNota: DocumentReference): Promise<Nota> {
+  const snap = await t.get(refNota);
+  if (!snap.exists()) throw new Error('Nota não encontrada.');
+  const nota = snap.data() as Nota;
+  if (nota.status !== 'preparacao') throw new Error('A nota já saiu.');
+  return nota;
+}
+
+/** Grava (ou troca) o destino da entrega. */
+export async function definirDestino(
+  db: Firestore,
+  chave: string,
+  destino: Destino,
+  autor: Autor,
+): Promise<void> {
   const refNota = doc(db, 'notas', chave);
   await runTransaction(db, async (t) => {
-    const snap = await t.get(refNota);
-    if (!snap.exists()) throw new Error('Nota não encontrada.');
-    if ((snap.data() as Nota).status !== 'em_rota') throw new Error('A nota não está em rota.');
-
+    await notaNoGalpao(t, refNota);
     const refEvento = doc(collection(db, 'eventos'));
     t.update(refNota, {
-      status: 'baixada',
-      baixadaEm: serverTimestamp(),
-      baixadaPor: autor.uid,
+      destinoCidade: destino.cidade,
+      destinoUf: destino.uf,
+      destinoIbge: destino.ibge,
       ultimoEventoId: refEvento.id,
     });
-    t.set(refEvento, evento(chave, 'baixa', autor));
+    t.set(refEvento, evento(chave, 'destino', autor, textoDestino(destino)));
+  });
+}
+
+/** Grava o motivo de espera (vai para "Em Ocorrência") ou, com null, retira (ocorrência resolvida). */
+export async function definirOcorrencia(
+  db: Firestore,
+  chave: string,
+  texto: string | null,
+  autor: Autor,
+): Promise<void> {
+  const motivo = texto?.trim() || null;
+  const refNota = doc(db, 'notas', chave);
+  await runTransaction(db, async (t) => {
+    const nota = await notaNoGalpao(t, refNota);
+    if (!motivo && !nota.ocorrencia) return;
+    const refEvento = doc(collection(db, 'eventos'));
+    if (motivo) {
+      t.update(refNota, { ocorrencia: motivo, ocorrenciaEm: serverTimestamp(), ultimoEventoId: refEvento.id });
+      t.set(refEvento, evento(chave, 'ocorrencia', autor, motivo));
+    } else {
+      t.update(refNota, { ocorrencia: deleteField(), ocorrenciaEm: deleteField(), ultimoEventoId: refEvento.id });
+      t.set(refEvento, evento(chave, 'resolucao', autor, nota.ocorrencia));
+    }
   });
 }

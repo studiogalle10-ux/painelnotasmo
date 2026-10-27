@@ -67,15 +67,36 @@ service cloud.firestore {
         && eventoNovo(chave, 'saida');
     }
 
-    // Baixa: em_rota -> baixada (sai da TV antes do prazo).
-    function baixa(chave) {
+    // Destino da entrega (cidade + UF da lista do IBGE), só com a nota no galpão.
+    function destino(chave) {
       let d = request.resource.data;
-      return resource.data.status == 'em_rota'
-        && d.status == 'baixada'
-        && d.baixadaEm == request.time
-        && d.baixadaPor == request.auth.uid
-        && alteraSo(['status', 'baixadaEm', 'baixadaPor', 'ultimoEventoId'])
-        && eventoNovo(chave, 'baixa');
+      return resource.data.status == 'preparacao'
+        && alteraSo(['destinoCidade', 'destinoUf', 'destinoIbge', 'ultimoEventoId'])
+        && d.destinoCidade is string && d.destinoCidade.size() > 0 && d.destinoCidade.size() <= 100
+        && d.destinoUf is string && d.destinoUf.matches('^[A-Z]{2}$')
+        && d.destinoIbge is int && d.destinoIbge >= 1000000 && d.destinoIbge <= 9999999
+        && eventoNovo(chave, 'destino');
+    }
+
+    // Ocorrência: motivo de espera (coluna "Em Ocorrência"), com a hora do servidor.
+    function ocorrencia(chave) {
+      let d = request.resource.data;
+      return resource.data.status == 'preparacao'
+        && alteraSo(['ocorrencia', 'ocorrenciaEm', 'ultimoEventoId'])
+        && d.ocorrencia is string && d.ocorrencia.size() > 0 && d.ocorrencia.size() <= 300
+        && d.ocorrenciaEm == request.time
+        && eventoNovo(chave, 'ocorrencia');
+    }
+
+    // Ocorrência resolvida: tira o motivo, a nota volta para Depósito/Urgência.
+    function resolucao(chave) {
+      let d = request.resource.data;
+      return resource.data.status == 'preparacao'
+        && 'ocorrencia' in resource.data
+        && !('ocorrencia' in d)
+        && !('ocorrenciaEm' in d)
+        && alteraSo(['ocorrencia', 'ocorrenciaEm', 'ultimoEventoId'])
+        && eventoNovo(chave, 'resolucao');
     }
 
     match /notas/{chave} {
@@ -92,7 +113,8 @@ service cloud.firestore {
         && request.resource.data.recebidaEm == request.time
         && eventoNovo(chave, 'entrada');
 
-      allow update: if logado() && (saida(chave) || baixa(chave));
+      allow update: if logado()
+        && (saida(chave) || destino(chave) || ocorrencia(chave) || resolucao(chave));
 
       // Nota nunca é apagada: se apagasse, a próxima bipagem a colocaria de novo na TV.
       allow delete: if false;
@@ -103,7 +125,7 @@ service cloud.firestore {
       return d.keys().hasAll(['chave', 'tipo', 'usuario', 'aparelho', 'criadoEm'])
         && d.keys().hasOnly(['chave', 'tipo', 'usuario', 'aparelho', 'detalhe', 'criadoEm'])
         && d.chave is string && formatoChave(d.chave)
-        && d.tipo in ['entrada', 'saida', 'baixa']
+        && d.tipo in ['entrada', 'saida', 'destino', 'ocorrencia', 'resolucao']
         && d.usuario == request.auth.uid
         && d.aparelho is string && d.aparelho.size() > 0 && d.aparelho.size() <= 64
         && (!('detalhe' in d) || (d.detalhe is string && d.detalhe.size() <= 500))
@@ -144,11 +166,9 @@ service cloud.firestore {
       allow read: if logado();
       allow write: if logado()
         && doc == 'geral'
-        && request.resource.data.keys().hasOnly(['diasUrgencia', 'diasEmRotaNaTv'])
+        && request.resource.data.keys().hasOnly(['diasUrgencia'])
         && request.resource.data.diasUrgencia is int
-        && request.resource.data.diasUrgencia >= 1 && request.resource.data.diasUrgencia <= 60
-        && request.resource.data.diasEmRotaNaTv is int
-        && request.resource.data.diasEmRotaNaTv >= 1 && request.resource.data.diasEmRotaNaTv <= 30;
+        && request.resource.data.diasUrgencia >= 1 && request.resource.data.diasUrgencia <= 60;
     }
   }
 }

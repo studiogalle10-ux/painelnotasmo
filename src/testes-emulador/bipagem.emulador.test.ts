@@ -23,7 +23,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import regras from '../../firebase/firestore.rules?raw';
-import { biparNota, darBaixa } from '../lib/bipagem';
+import { biparNota, definirDestino, definirOcorrencia } from '../lib/bipagem';
 import { lerChave } from '../lib/chaveAcesso';
 import { EMAIL_PAINEL } from '../lib/firebase';
 import type { Evento } from '../tipos/firestore';
@@ -183,34 +183,110 @@ describe('biparNota', () => {
   });
 });
 
-describe('darBaixa', () => {
-  it('tira a nota em rota da TV, com evento de baixa', async () => {
-    await emRota();
-    await darBaixa(banco(), CHAVE, autor());
+const CAMPINAS = { cidade: 'Campinas', uf: 'SP', ibge: 3509502 };
 
-    const nota = await lerNota();
-    expect(nota).toMatchObject({ status: 'baixada', baixadaPor: PAINEL });
-    expect(nota?.baixadaEm).toBeInstanceOf(Timestamp);
-    expect(nota?.saidaEm).toBeInstanceOf(Timestamp);
-    expect((await eventosDa()).map((e) => e.tipo).sort()).toEqual(['baixa', 'entrada', 'saida']);
-  });
-
-  it('bipada de novo depois da baixa, só avisa que já foi despachada', async () => {
-    await emRota();
-    await darBaixa(banco(), CHAVE, autor());
-    expect((await biparNota(banco(), CHAVE, autor())).tipo).toBe('ja_despachada');
-    expect((await lerNota())?.status).toBe('baixada');
-  });
-
-  it('recusa baixa de nota que ainda está em preparação', async () => {
+describe('definirDestino e definirOcorrencia', () => {
+  it('grava o destino, com evento que guarda "Cidade – UF"', async () => {
     await biparNota(banco(), CHAVE, autor());
-    await expect(darBaixa(banco(), CHAVE, autor())).rejects.toThrow('A nota não está em rota.');
+    await definirDestino(banco(), CHAVE, CAMPINAS, autor());
+
+    expect(await lerNota()).toMatchObject({
+      status: 'preparacao', destinoCidade: 'Campinas', destinoUf: 'SP', destinoIbge: 3509502,
+    });
+    expect((await eventosDa()).find((e) => e.tipo === 'destino')).toMatchObject({ detalhe: 'Campinas – SP' });
   });
 
-  it('outra conta não consegue dar baixa', async () => {
-    await emRota();
-    await assertFails(darBaixa(intruso(), CHAVE, autor('intruso')));
+  it('troca o destino depois', async () => {
+    await biparNota(banco(), CHAVE, autor());
+    await definirDestino(banco(), CHAVE, CAMPINAS, autor());
+    await definirDestino(banco(), CHAVE, { cidade: 'Curitiba', uf: 'PR', ibge: 4106902 }, autor());
+    expect(await lerNota()).toMatchObject({ destinoCidade: 'Curitiba', destinoUf: 'PR' });
+  });
+
+  it('ocorrência: grava o motivo e depois resolve (o motivo fica no histórico)', async () => {
+    await biparNota(banco(), CHAVE, autor());
+    await definirOcorrencia(banco(), CHAVE, '  Aguardando agendamento  ', autor());
+    const comOcorrencia = await lerNota();
+    expect(comOcorrencia?.ocorrencia).toBe('Aguardando agendamento');
+    expect(comOcorrencia?.ocorrenciaEm).toBeInstanceOf(Timestamp);
+
+    await definirOcorrencia(banco(), CHAVE, null, autor());
+    const resolvida = await lerNota();
+    expect(resolvida?.ocorrencia).toBeUndefined();
+    expect(resolvida?.ocorrenciaEm).toBeUndefined();
+    const eventos = await eventosDa();
+    expect(eventos.find((e) => e.tipo === 'ocorrencia')).toMatchObject({ detalhe: 'Aguardando agendamento' });
+    expect(eventos.find((e) => e.tipo === 'resolucao')).toMatchObject({ detalhe: 'Aguardando agendamento' });
+  });
+
+  it('resolver nota sem ocorrência não grava nada', async () => {
+    await biparNota(banco(), CHAVE, autor());
+    await definirOcorrencia(banco(), CHAVE, null, autor());
+    expect(await eventosDa()).toHaveLength(1);
+  });
+
+  it('nota com ocorrência ainda dá saída na 2ª bipagem', async () => {
+    await biparNota(banco(), CHAVE, autor());
+    await definirOcorrencia(banco(), CHAVE, 'Falta volume', autor());
+    expect((await biparNota(banco(), CHAVE, autor())).tipo).toBe('saida');
     expect((await lerNota())?.status).toBe('em_rota');
+  });
+
+  it('depois da saída não dá mais para mudar destino nem ocorrência', async () => {
+    await emRota();
+    await expect(definirDestino(banco(), CHAVE, CAMPINAS, autor())).rejects.toThrow('A nota já saiu.');
+    await expect(definirOcorrencia(banco(), CHAVE, 'x', autor())).rejects.toThrow('A nota já saiu.');
+  });
+
+  it('outra conta não consegue gravar destino nem ocorrência', async () => {
+    await biparNota(banco(), CHAVE, autor());
+    await assertFails(definirDestino(intruso(), CHAVE, CAMPINAS, autor('intruso')));
+    await assertFails(definirOcorrencia(intruso(), CHAVE, 'x', autor('intruso')));
+  });
+});
+
+/** Atualização gravada à mão (sem a função), em batch com o evento, para testar as regras. */
+async function batchAtualizacao(campos: Record<string, unknown>, tipo: string) {
+  const db = banco();
+  const refEvento = doc(collection(db, 'eventos'));
+  const b = writeBatch(db);
+  b.update(doc(db, 'notas', CHAVE), { ...campos, ultimoEventoId: refEvento.id });
+  b.set(refEvento, eventoDe(CHAVE, tipo, PAINEL));
+  return b.commit();
+}
+
+const DESTINO_OK = { destinoCidade: 'Campinas', destinoUf: 'SP', destinoIbge: 3509502 };
+
+describe('regras: destino e ocorrência gravados por fora das funções', () => {
+  beforeEach(async () => {
+    await biparNota(banco(), CHAVE, autor());
+  });
+
+  it('aceita destino válido (controle)', async () => {
+    await assertSucceeds(batchAtualizacao(DESTINO_OK, 'destino'));
+  });
+
+  it('recusa destino com UF inválida, código errado ou cidade vazia', async () => {
+    await assertFails(batchAtualizacao({ ...DESTINO_OK, destinoUf: 'Sp' }, 'destino'));
+    await assertFails(batchAtualizacao({ ...DESTINO_OK, destinoIbge: 12 }, 'destino'));
+    await assertFails(batchAtualizacao({ ...DESTINO_OK, destinoCidade: '' }, 'destino'));
+  });
+
+  it('recusa destino que muda outro campo junto (status ou data)', async () => {
+    await assertFails(batchAtualizacao({ ...DESTINO_OK, status: 'em_rota' }, 'destino'));
+    await assertFails(batchAtualizacao({ ...DESTINO_OK, recebidaEm: serverTimestamp() }, 'destino'));
+  });
+
+  it('recusa destino com evento de outro tipo', async () => {
+    await assertFails(batchAtualizacao(DESTINO_OK, 'saida'));
+  });
+
+  it('recusa ocorrência vazia, longa demais ou com data escolhida pelo computador', async () => {
+    await assertFails(batchAtualizacao({ ocorrencia: '', ocorrenciaEm: serverTimestamp() }, 'ocorrencia'));
+    await assertFails(batchAtualizacao({ ocorrencia: 'x'.repeat(301), ocorrenciaEm: serverTimestamp() }, 'ocorrencia'));
+    await assertFails(batchAtualizacao(
+      { ocorrencia: 'ok', ocorrenciaEm: Timestamp.fromDate(new Date('2026-01-01T12:00:00Z')) }, 'ocorrencia'));
+    await assertSucceeds(batchAtualizacao({ ocorrencia: 'ok', ocorrenciaEm: serverTimestamp() }, 'ocorrencia'));
   });
 });
 
@@ -242,9 +318,8 @@ describe('regras: gravações feitas por fora das funções', () => {
     await assertFails(batchEntrada(banco(), PAINEL, (n) => { n.recebidaPor = 'outro'; }).commit());
   });
 
-  it('recusa criar a nota já em rota ou baixada', async () => {
+  it('recusa criar a nota já em rota', async () => {
     await assertFails(batchEntrada(banco(), PAINEL, (n) => { n.status = 'em_rota'; }).commit());
-    await assertFails(batchEntrada(banco(), PAINEL, (n) => { n.status = 'baixada'; }).commit());
   });
 
   it('recusa saída que mexe na data de recebimento', async () => {
@@ -307,29 +382,25 @@ describe('regras: leitura', () => {
     await assertFails(getDoc(doc(banco(null), 'notas', CHAVE)));
   });
 
-  it('consultas da TV funcionam', async () => {
+  it('consulta da TV (notas no galpão) funciona e não traz as que saíram', async () => {
     await biparNota(banco(), OUTRA_CHAVE, autor());
     await biparNota(banco(), OUTRA_CHAVE, autor());
-    const prep = await assertSucceeds(getDocs(
+    const galpao = await assertSucceeds(getDocs(
       query(collection(banco(), 'notas'), where('status', '==', 'preparacao')),
     ));
-    expect(prep.size).toBe(1);
-    const rota = await assertSucceeds(getDocs(query(collection(banco(), 'notas'),
-      where('status', '==', 'em_rota'), where('saidaEm', '>=', Timestamp.fromMillis(Date.now() - 86_400_000)))));
-    expect(rota.size).toBe(1);
+    expect(galpao.docs.map((d) => d.id)).toEqual([CHAVE]);
   });
 });
 
 describe('regras: ajustes e emitentes', () => {
   it('ajustes: só o documento geral, com números válidos', async () => {
-    await assertSucceeds(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 2 }));
-    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 'abc', diasEmRotaNaTv: 2 }));
-    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 0 }));
-    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 31 }));
-    await assertFails(setDoc(doc(banco(), 'config', 'geral'),
-      { diasUrgencia: 5, diasEmRotaNaTv: 2, outro: true }));
-    await assertFails(setDoc(doc(banco(), 'config', 'outro'), { diasUrgencia: 5, diasEmRotaNaTv: 2 }));
-    await assertFails(setDoc(doc(intruso(), 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 2 }));
+    await assertSucceeds(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 4 }));
+    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 'abc' }));
+    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 0 }));
+    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 61 }));
+    await assertFails(setDoc(doc(banco(), 'config', 'geral'), { diasUrgencia: 4, outro: true }));
+    await assertFails(setDoc(doc(banco(), 'config', 'outro'), { diasUrgencia: 4 }));
+    await assertFails(setDoc(doc(intruso(), 'config', 'geral'), { diasUrgencia: 4 }));
     await assertSucceeds(getDoc(doc(banco(), 'config', 'geral')));
   });
 

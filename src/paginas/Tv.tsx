@@ -1,45 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Timestamp,
-  collection,
-  doc,
-  getDoc,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-  type QuerySnapshot,
-} from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { lerChave } from '../lib/chaveAcesso';
 import { formatarDataExtenso, formatarHora } from '../lib/datas';
 import { nomeExibicao } from '../lib/emitentes';
-import { separarColunas, type NotaPainel } from '../lib/painel';
+import { separarColunas } from '../lib/painel';
+import { useNotasGalpao } from '../lib/notasGalpao';
 import { useOnline } from '../lib/conexao';
 import { useConfig } from '../lib/config';
 import { ColunaTv } from '../componentes/ColunaTv';
 import { Rodape } from '../componentes/Rodape';
-import type { Emitente, Nota } from '../tipos/firestore';
+import type { Emitente } from '../tipos/firestore';
 
-const DIA_MS = 24 * 60 * 60 * 1000;
 const TROCA_PAGINA_MS = 10_000;
 const RECALCULO_MS = 60_000;
 const RECARGA_MS = 30 * 60_000;
-
-function paraNotas(snap: QuerySnapshot): NotaPainel[] {
-  return snap.docs.flatMap((d) => {
-    const lida = lerChave(d.id);
-    if (!lida.ok) return [];
-    // Gravação recém-feita ainda sem hora do servidor: usa a estimativa local.
-    const n = d.data({ serverTimestamps: 'estimate' }) as Nota;
-    return [{
-      dados: lida.dados,
-      status: n.status,
-      recebidaEm: n.recebidaEm.toDate(),
-      saidaEm: n.saidaEm?.toDate() ?? null,
-    }];
-  });
-}
 
 function Relogio() {
   const [agora, setAgora] = useState(() => new Date());
@@ -58,46 +32,11 @@ function Relogio() {
 export function Tv() {
   const online = useOnline();
   const config = useConfig();
-  const [preparacao, setPreparacao] = useState<NotaPainel[]>([]);
-  const [emRota, setEmRota] = useState<NotaPainel[]>([]);
-  const [doCache, setDoCache] = useState({ preparacao: true, emRota: true });
-  const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const galpao = useNotasGalpao();
   const [agora, setAgora] = useState(() => new Date());
   const [contador, setContador] = useState(0);
   const [nomes, setNomes] = useState<Record<string, string>>({});
   const nomesBuscados = useRef(new Set<string>());
-
-  const falhou = () => setErro('Sem acesso aos dados. Entre de novo com a senha do painel.');
-
-  useEffect(() => onSnapshot(
-    query(collection(db, 'notas'), where('status', '==', 'preparacao'), orderBy('recebidaEm')),
-    { includeMetadataChanges: true },
-    (s) => {
-      setPreparacao(paraNotas(s));
-      setDoCache((c) => ({ ...c, preparacao: s.metadata.fromCache }));
-      if (!s.metadata.fromCache) setAtualizadoEm(new Date());
-      setErro(null);
-    },
-    falhou,
-  ), []);
-
-  // A janela de "Em rota" é fixada ao assinar; o recorte exato é refeito a cada minuto.
-  useEffect(() => {
-    const inicio = Timestamp.fromMillis(Date.now() - config.diasEmRotaNaTv * DIA_MS);
-    return onSnapshot(
-      query(collection(db, 'notas'), where('status', '==', 'em_rota'),
-        where('saidaEm', '>=', inicio), orderBy('saidaEm', 'desc')),
-      { includeMetadataChanges: true },
-      (s) => {
-        setEmRota(paraNotas(s));
-        setDoCache((c) => ({ ...c, emRota: s.metadata.fromCache }));
-        if (!s.metadata.fromCache) setAtualizadoEm(new Date());
-        setErro(null);
-      },
-      falhou,
-    );
-  }, [config.diasEmRotaNaTv]);
 
   useEffect(() => {
     const recalculo = window.setInterval(() => setAgora(new Date()), RECALCULO_MS);
@@ -131,7 +70,7 @@ export function Tv() {
       try {
         if (document.visibilityState === 'visible') trava = await navigator.wakeLock?.request('screen');
       } catch {
-        // Nem todo navegador permite; o Fully Kiosk também mantém a tela ligada.
+        // Nem todo navegador permite.
       }
     };
     void pedir();
@@ -142,14 +81,15 @@ export function Tv() {
     };
   }, []);
 
+  const notas = galpao.notas;
   const colunas = useMemo(
-    () => separarColunas([...preparacao, ...emRota], agora, config),
-    [preparacao, emRota, agora, config],
+    () => separarColunas(notas ?? [], agora, config),
+    [notas, agora, config],
   );
 
-  // Nomes dos emissores: a TV só lê o cache (quem grava é o operador, ao bipar).
+  // Nomes dos emissores: a TV só lê o cache (quem grava é a tela de bipar).
   useEffect(() => {
-    for (const n of [...preparacao, ...emRota]) {
+    for (const n of notas ?? []) {
       const cnpj = n.dados.cnpjEmitente;
       if (n.dados.tipoDocEmitente !== 'cnpj' || nomesBuscados.current.has(cnpj)) continue;
       nomesBuscados.current.add(cnpj);
@@ -160,10 +100,9 @@ export function Tv() {
         })
         .catch(() => nomesBuscados.current.delete(cnpj));
     }
-  }, [preparacao, emRota]);
+  }, [notas]);
 
-  const reconectando = doCache.preparacao || doCache.emRota;
-  const estado = !online ? 'Sem internet' : reconectando ? 'Reconectando…' : 'Online';
+  const estado = !online ? 'Sem internet' : galpao.doCache ? 'Reconectando…' : 'Online';
 
   return (
     // Um clique na TV liga a tela cheia (o navegador só deixa com um clique).
@@ -176,19 +115,21 @@ export function Tv() {
         <Relogio />
         <div className="tv-estado">
           <span className={`conexao ${estado === 'Online' ? 'conexao-ok' : 'conexao-off'}`}>{estado}</span>
-          {atualizadoEm && <span className="tv-atualizado">Atualizado às {formatarHora(atualizadoEm)}</span>}
+          {galpao.atualizadoEm && (
+            <span className="tv-atualizado">Atualizado às {formatarHora(galpao.atualizadoEm)}</span>
+          )}
         </div>
       </header>
 
-      {erro && <p className="tv-erro">{erro}</p>}
+      {galpao.erro && <p className="tv-erro">Sem acesso aos dados. Entre de novo com a senha do painel.</p>}
 
       <div className="tv-colunas">
-        <ColunaTv titulo="Preparação" coluna="preparacao" itens={colunas.preparacao}
-          contador={contador} nomes={nomes} vazio="Nenhuma nota em preparação" />
+        <ColunaTv titulo="Em Ocorrência" coluna="ocorrencia" itens={colunas.ocorrencia}
+          contador={contador} nomes={nomes} vazio="Nenhuma nota aguardando" />
+        <ColunaTv titulo="Depósito" coluna="deposito" itens={colunas.deposito}
+          contador={contador} nomes={nomes} vazio="Nenhuma nota no depósito" />
         <ColunaTv titulo="Urgência" coluna="urgencia" itens={colunas.urgencia}
           contador={contador} nomes={nomes} vazio={`Nenhuma nota com ${config.diasUrgencia}+ dias`} />
-        <ColunaTv titulo="Em rota" coluna="em_rota" itens={colunas.emRota}
-          contador={contador} nomes={nomes} vazio="Nenhuma nota em rota" />
       </div>
       <Rodape tv />
     </main>

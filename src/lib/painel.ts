@@ -1,63 +1,76 @@
-// Separação das notas nas colunas da TV. Urgência não é gravada: sai daqui, a partir da
-// data da 1ª bipagem e de `config/geral`.
+// Separação das notas nas colunas da TV. Nem ocorrência nem urgência são status: saem
+// daqui, a partir do motivo gravado, da data da 1ª bipagem e de `config/geral`.
+import type { Destino } from './bipagem';
 import type { ChaveNFe } from './chaveAcesso';
 import { diasDesde } from './datas';
-import type { Config, StatusNota } from '../tipos/firestore';
+import type { Config, Nota } from '../tipos/firestore';
 
+/** Nota que está no galpão (status `preparacao`), pronta para a TV. */
 export interface NotaPainel {
   dados: ChaveNFe;
-  status: StatusNota;
   recebidaEm: Date;
-  saidaEm: Date | null;
+  /** null enquanto ninguém preencheu (aparece "SEM DESTINO"). */
+  destino: Destino | null;
+  ocorrencia: string | null;
 }
 
 export interface ItemPainel extends NotaPainel {
   /** Dias completos desde a 1ª bipagem. */
   dias: number;
-  /** Em preparação, a um dia de virar urgência (amarelo). */
+  /** No Depósito, a um dia de virar urgência (amarelo). */
   alerta: boolean;
 }
 
 export interface Colunas {
-  preparacao: ItemPainel[];
+  ocorrencia: ItemPainel[];
+  deposito: ItemPainel[];
   urgencia: ItemPainel[];
-  emRota: ItemPainel[];
 }
 
-export type TipoColuna = 'preparacao' | 'urgencia' | 'em_rota';
+export type TipoColuna = 'ocorrencia' | 'deposito' | 'urgencia';
 
 /** Altura fixa de cada card na TV, em % da altura da tela (a paginação conta com ela). */
 export const ALTURA_CARTAO_VH: Record<TipoColuna, number> = {
-  preparacao: 12.5,
-  urgencia: 12.5,
-  em_rota: 8.5,
+  ocorrencia: 15.5,
+  deposito: 15.5,
+  urgencia: 15.5,
 };
 
-const DIA_MS = 24 * 60 * 60 * 1000;
+/** Campos da nota que a TV e a tela de bipar usam. */
+export function paraNotaPainel(dados: ChaveNFe, n: Nota): NotaPainel {
+  return {
+    dados,
+    recebidaEm: n.recebidaEm.toDate(),
+    destino: n.destinoCidade && n.destinoUf && n.destinoIbge
+      ? { cidade: n.destinoCidade, uf: n.destinoUf, ibge: n.destinoIbge }
+      : null,
+    ocorrencia: n.ocorrencia ?? null,
+  };
+}
 
+/**
+ * Com ocorrência → Em Ocorrência (está esperando algo que não depende da MO, mesmo com
+ * muitos dias). Sem ocorrência: `diasUrgencia`+ dias → Urgência; senão → Depósito.
+ */
 export function separarColunas(notas: NotaPainel[], agora: Date, config: Config): Colunas {
-  const colunas: Colunas = { preparacao: [], urgencia: [], emRota: [] };
-  const limiteEmRota = agora.getTime() - config.diasEmRotaNaTv * DIA_MS;
+  const colunas: Colunas = { ocorrencia: [], deposito: [], urgencia: [] };
 
   for (const nota of notas) {
     const dias = diasDesde(nota.recebidaEm, agora);
-    if (nota.status === 'em_rota') {
-      // Sem hora de saída ainda (gravação pendente): está saindo agora.
-      const saida = nota.saidaEm?.getTime() ?? agora.getTime();
-      if (saida > limiteEmRota) colunas.emRota.push({ ...nota, dias, alerta: false });
+    if (nota.ocorrencia) {
+      colunas.ocorrencia.push({ ...nota, dias, alerta: false });
     } else if (dias >= config.diasUrgencia) {
       colunas.urgencia.push({ ...nota, dias, alerta: false });
     } else {
-      colunas.preparacao.push({ ...nota, dias, alerta: dias >= config.diasUrgencia - 1 });
+      colunas.deposito.push({ ...nota, dias, alerta: dias >= config.diasUrgencia - 1 });
     }
   }
 
   const maisAntigaPrimeiro = (a: ItemPainel, b: ItemPainel) =>
     a.recebidaEm.getTime() - b.recebidaEm.getTime();
-  colunas.preparacao.sort(maisAntigaPrimeiro);
+  colunas.ocorrencia.sort(maisAntigaPrimeiro);
+  colunas.deposito.sort(maisAntigaPrimeiro);
   colunas.urgencia.sort(maisAntigaPrimeiro);
-  colunas.emRota.sort((a, b) =>
-    (b.saidaEm?.getTime() ?? agora.getTime()) - (a.saidaEm?.getTime() ?? agora.getTime()));
   return colunas;
 }
 

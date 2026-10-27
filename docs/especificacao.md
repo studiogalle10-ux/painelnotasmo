@@ -1,15 +1,15 @@
 # Painel de NFs na TV — MO Transportes
 
-Especificação v1.2 (Firebase, versão simples) · 23/10/2026
+Especificação v1.3 (Firebase, versão simples) · 27/10/2026
 
 ## 1. Visão geral
 
-Sistema web onde cada NF-e é registrada só pela bipagem do código de barras do DANFE e aparece num painel na TV do galpão, separada em **Preparação**, **Urgência** e **Em rota**. Objetivo: dar visibilidade às notas paradas e acabar com atrasos de despacho.
+Sistema web onde cada NF-e é registrada só pela bipagem do código de barras do DANFE e aparece num painel na TV do galpão, separada em **Em Ocorrência**, **Depósito** e **Urgência**. Objetivo: dar visibilidade às notas paradas e acabar com atrasos de despacho.
 
-- **Regra de ouro:** sem preenchimento manual. Bipou, a nota entrou.
+- **Regra de ouro:** sem preenchimento manual para registrar. Bipou, a nota entrou. Logo depois o operador escolhe o destino (cidade e UF) numa busca com todas as cidades do IBGE.
 - **v1 independente:** não depende do sistema de conferência de volumes nem do SitraWeb.
 - **Um PC, duas telas:** o leitor USB fica no PC; na tela principal fica a página de bipar e na TV (segunda tela, HDMI) o painel em tela cheia. Roda online, então outro computador também pode abrir.
-- **Fluxo:** 1ª bipagem → Preparação. 5 dias sem saída → Urgência. 2ª bipagem → Em rota. Em rota sai sozinha da TV depois de X dias, ou antes, pelo botão "Dar baixa".
+- **Fluxo:** 1ª bipagem → Depósito + quadro do destino (obrigatório) e ocorrência (opcional). Com ocorrência → Em Ocorrência. 4 dias parada sem ocorrência → Urgência. 2ª bipagem → saiu, some da TV.
 
 ## 2. Stack e serviços
 
@@ -27,30 +27,39 @@ Sistema web onde cada NF-e é registrada só pela bipagem do código de barras d
 
 ## 3. Regras de negócio
 
-Urgência é uma coluna separada na TV, mas **não é status gravado**: é calculada a partir da data da 1ª bipagem.
+As colunas **não são status gravado**: saem da ocorrência e da data da 1ª bipagem. Na TV, da esquerda para a direita:
 
 | Coluna | Status gravado | Condição | Visual |
 | --- | --- | --- | --- |
-| Preparação | `preparacao` | Bipada há menos de 5 dias | Card normal; amarelo a partir do 4º dia |
-| Urgência | `preparacao` | Bipada há 5+ dias e sem saída | Vermelho, mais antiga primeiro |
-| Em rota | `em_rota` | 2ª bipagem (saída), até X dias | Discreto, com horário de saída |
-| (fora da TV) | `baixada` | Botão "Dar baixa" | Não aparece |
+| Em Ocorrência | `preparacao` | Tem ocorrência (aguardando algo que não é culpa da MO), com qualquer número de dias | Âmbar, com o motivo |
+| Depósito | `preparacao` | Sem ocorrência, há menos de 4 dias | Card normal; amarelo no último dia antes da urgência |
+| Urgência | `preparacao` | Sem ocorrência, 4+ dias parada | Vermelho, mais antiga primeiro |
+| (fora da TV) | `em_rota` | 2ª bipagem (saiu) | Não aparece |
+
+Card sem destino mostra **SEM DESTINO** (ex.: a página fechou antes de salvar o quadro).
 
 ### Lógica da bipagem (tela única, transação do Firestore em `notas/{chave}`)
 
-1. Documento não existe → cria em Preparação. Som de sucesso.
-2. Existe com `preparacao` → muda para `em_rota`, grava `saidaEm`. Som de saída.
-3. Existe com `em_rota` ou `baixada` → não muda nada, avisa "nota já despachada". Som de erro.
+1. Documento não existe → cria no Depósito e abre o quadro do destino. Som de sucesso.
+2. Existe com `preparacao` → muda para `em_rota`, grava `saidaEm`. Som de saída. Some da TV.
+3. Existe com `em_rota` → não muda nada, avisa "nota já saiu". Som de erro.
 4. Chave inválida (DV errado ou modelo ≠ 55) → rejeita antes de gravar, pede nova leitura.
 5. Mesma chave em menos de 10 s no mesmo aparelho → ignora a repetição (controle no front).
+6. Com o quadro aberto, bipagem não é registrada (nem no campo principal nem caindo dentro do quadro): avisa para salvar o destino e bipar de novo.
+
+### Destino e ocorrência
+
+- Destino: digitar parte do nome (sem acento, pode terminar com a UF: "bom jesus rs") e escolher na lista; só aceita cidade da lista do IBGE, a UF vem junto. Obrigatório para fechar o quadro da nota nova.
+- Ocorrência: texto livre até 300 caracteres. Manda a nota para Em Ocorrência; "Resolver" tira a ocorrência e a nota volta a contar para Depósito/Urgência.
+- A lista "No depósito" da tela de bipar permite informar/alterar destino e ocorrência a qualquer momento.
 
 ### Outras regras
 
-- Os 5 dias contam da 1ª bipagem (chegada na MO), não da emissão.
-- Os dois números (dias de urgência e dias de Em rota) ficam em `config/geral` e mudam no botão "Ajustes" da tela de bipar.
+- Os 4 dias contam da 1ª bipagem (chegada na MO), não da emissão.
+- O número de dias da urgência fica em `config/geral` (`diasUrgencia`, padrão 4) e muda no botão "Ajustes" da tela de bipar.
 - Toda ação grava evento (quem, quando, aparelho).
 - Nota nunca é apagada (senão voltaria à TV na próxima bipagem).
-- Em rota some da TV depois de `diasEmRotaNaTv` dias (padrão 1) ou ao dar baixa; continua no banco.
+- Nota que saiu some da TV na hora; continua no banco.
 
 ## 4. Chave de acesso (44 posições)
 
@@ -80,8 +89,8 @@ Urgência é uma coluna separada na TV, mas **não é status gravado**: é calcu
 
 ### /tv (só leitura)
 - Aberta pelo botão "Abrir TV" da tela de bipar; arrastar a janela para a TV e clicar nela para tela cheia.
-- Três colunas: Preparação, Urgência, Em rota, com contador.
-- Card: NF/série, emissor, UF, data/hora da bipagem, dias parada.
+- Três colunas: Em Ocorrência, Depósito, Urgência, com contador.
+- Card: NF/série, dias parada, destino (ou SEM DESTINO), emissor e UF, motivo da ocorrência ou data/hora da bipagem.
 - Leitura a 3–5 m: fonte grande, tema escuro, alto contraste.
 - Sem rolagem manual: rola sozinha ou pagina.
 - Relógio, data, indicador de conexão.
@@ -91,8 +100,9 @@ Urgência é uma coluna separada na TV, mas **não é status gravado**: é calcu
 - Campo único sempre com foco; leitor digita chave + Enter.
 - Opção de digitar a chave quando o código está danificado.
 - Feedback grande e colorido + som distinto por resultado.
-- Lista "Em rota na TV" com botão "Dar baixa".
-- Botão "Ajustes": dias de urgência e dias de Em rota na TV.
+- Quadro da nota nova: destino (obrigatório) e ocorrência.
+- Lista "No depósito" (o que está na TV): sem destino primeiro; botões Informar destino / Ocorrência / Editar / Resolver.
+- Botão "Ajustes": dias para ir para Urgência.
 - Últimas 10 bipagens do computador.
 
 
@@ -100,12 +110,12 @@ Urgência é uma coluna separada na TV, mas **não é status gravado**: é calcu
 
 | Coleção | ID do documento | Campos | Observação |
 | --- | --- | --- | --- |
-| `notas` | chave de 44 caracteres | uf, aamm, cnpjEmitente, modelo, serie, numero, tpEmis, codigoNumerico, status, recebidaEm, recebidaPor, saidaEm, saidaPor, baixadaEm, baixadaPor, ultimoEventoId | Urgência calculada no front; `ultimoEventoId` liga a gravação ao evento (exigido pelas regras) |
+| `notas` | chave de 44 caracteres | uf, aamm, cnpjEmitente, modelo, serie, numero, tpEmis, codigoNumerico, status, recebidaEm, recebidaPor, saidaEm, saidaPor, destinoCidade, destinoUf, destinoIbge, ocorrencia, ocorrenciaEm, ultimoEventoId | Urgência calculada no front; `ultimoEventoId` liga a gravação ao evento (exigido pelas regras) |
 | `emitentes` | CNPJ | razaoSocial, nomeFantasia, consultadoEm | Cache da BrasilAPI; não consultar quando o emitente for CPF |
-| `eventos` | automático | chave, tipo (entrada/saida/baixa), usuario, aparelho, detalhe, criadoEm | Nunca apagado; `aparelho` = ID gerado e salvo no localStorage |
-| `config` | `geral` | diasUrgencia = 5, diasEmRotaNaTv = 1 | Editável em "Ajustes" |
+| `eventos` | automático | chave, tipo (entrada/saida/destino/ocorrencia/resolucao), usuario, aparelho, detalhe, criadoEm | Nunca apagado; `aparelho` = ID gerado e salvo no localStorage |
+| `config` | `geral` | diasUrgencia = 4 | Editável em "Ajustes" |
 
-- TV consulta: `status == 'preparacao'` e, separadamente, `status == 'em_rota' && saidaEm >= agora − diasEmRotaNaTv` (criar índice composto).
+- TV e lista "No depósito" consultam `status == 'preparacao'` ordenado por `recebidaEm`.
 - Transação de bipagem grava `notas/{chave}` e `eventos/{novo}` juntos.
 - Backup: exportação periódica (script simples que lê as coleções e salva JSON no Drive) — definir na fase de manutenção.
 
@@ -117,8 +127,9 @@ Urgência é uma coluna separada na TV, mas **não é status gravado**: é calcu
 
 ## 8. Pontos a decidir
 
-- [ ] 5 dias corridos ou úteis?
-- [x] Em rota: sai sozinha após X dias (ajustável) ou pelo botão "Dar baixa".
+- [ ] 4 dias corridos ou úteis? (hoje: corridos)
+- [x] Sem coluna Em rota: a 2ª bipagem tira a nota da TV.
+- [x] Destino digitado pelo operador (cidade + UF da lista do IBGE) até integrar o CT-e.
 - [ ] Quantas notas cabem na TV (rolar ou paginar)?
 - [x] Sem admin nem usuários: uma senha só do painel (conta `painel@painelmotnsp.firebaseapp.com`, criada no console do Firebase).
 - [ ] Firebase Hosting ou Netlify.

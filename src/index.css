@@ -141,7 +141,6 @@ input {
 .ultima-tipo { grid-area: tipo; align-self: center; font-size: 0.9rem; }
 .ultima-entrada { border-left-color: #22c55e; }
 .ultima-saida { border-left-color: #e2e8f0; }
-.ultima-baixa { border-left-color: #64748b; }
 .ultimas-aviso { color: var(--texto-suave); margin: 0; }
 
 .camera {
@@ -197,7 +196,7 @@ input {
 .tv-atualizado { font-size: 1.9vh; color: #94a3b8; }
 .tv-erro { margin: 0; padding: 1vh; text-align: center; font-size: 2.6vh; background: #7f1d1d; border-radius: 8px; }
 
-.tv-colunas { flex: 1; display: grid; grid-template-columns: 1fr 1fr 0.85fr; gap: 1.2vw; min-height: 0; }
+.tv-colunas { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.2vw; min-height: 0; }
 
 .coluna {
   display: grid;
@@ -221,7 +220,6 @@ input {
 .coluna-urgencia { background: #1f0a0a; box-shadow: inset 0 0 0 0.4vh #dc2626; }
 .coluna-urgencia .coluna-topo h2 { color: #fca5a5; }
 .coluna-urgencia .coluna-contador { background: #dc2626; }
-.coluna-em_rota .coluna-topo h2 { color: #f1f5f9; }
 
 .coluna-corpo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 .coluna-vazia { font-size: 2.6vh; color: #64748b; padding: 2vh 0; }
@@ -244,6 +242,9 @@ input {
 .cartao-dias { font-size: 3.4vh; font-weight: 700; white-space: nowrap; }
 .cartao-emissor { font-size: 2.5vh; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cartao-recebida { font-size: 2.1vh; color: #94a3b8; }
+.cartao-destino { font-size: 3.3vh; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: 0.02em; }
+.cartao-sem-destino { color: #fca5a5; }
+.cartao-motivo { font-size: 2.3vh; font-weight: 600; color: #fde68a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .cartao-alerta { background: #3b2a05; border-left-color: #facc15; }
 .cartao-alerta .cartao-dias { color: #fde047; }
@@ -252,16 +253,7 @@ input {
 .cartao-urgencia .cartao-dias { color: #fecaca; }
 .cartao-urgencia .cartao-serie, .cartao-urgencia .cartao-recebida { color: #fecaca; }
 
-.cartao-em_rota { background: #161a20; border-left-color: #e2e8f0; }
-.cartao-em_rota .cartao-nf { font-size: 3vh; color: #cbd5e1; }
-.cartao-em_rota .cartao-emissor { font-size: 2.1vh; color: #94a3b8; }
-.cartao-saida { font-size: 2.6vh; color: #e2e8f0; white-space: nowrap; }
 
-.ultima-com-botao {
-  grid-template-columns: 6.5rem 1fr auto;
-  grid-template-areas: "hora nf botao" "hora emissor botao";
-}
-.ultima-botao { grid-area: botao; align-self: center; padding: 0.4rem 0.9rem; }
 
 .ajustes {
   display: grid;
@@ -309,3 +301,72 @@ input {
   color: #64748b;
 }
 .rodape-tv strong { color: #94a3b8; }
+
+/* Em Ocorrência: aguardando algo que não depende da MO (âmbar, sem alarme). */
+.coluna-ocorrencia { background: #17130a; box-shadow: inset 0 0 0 0.3vh #b45309; }
+.coluna-ocorrencia .coluna-topo h2 { color: #fcd34d; }
+.coluna-ocorrencia .coluna-contador { background: #92400e; }
+.cartao-ocorrencia { background: #2a1f0a; border-left-color: #f59e0b; }
+
+.ultima-destino, .ultima-ocorrencia { border-left-color: #f59e0b; }
+.ultima-resolucao { border-left-color: #64748b; }
+
+/* Quadro de destino e ocorrência (abre na 1ª bipagem). */
+.quadro {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  background: var(--superficie);
+  border: 2px solid var(--destaque);
+  border-radius: 10px;
+}
+.quadro-titulo { margin: 0; font-size: 1.15rem; }
+.quadro-campo { display: grid; gap: 0.35rem; color: var(--texto-suave); }
+.quadro-campo strong { color: var(--texto); }
+.quadro-campo em { font-style: normal; font-size: 0.85rem; }
+.quadro textarea {
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: var(--fundo);
+  color: var(--texto);
+  font: inherit;
+  resize: vertical;
+}
+.quadro-escolhido { margin: -0.3rem 0 0; color: #86efac; font-weight: 600; }
+.quadro-botoes { display: flex; justify-content: flex-end; gap: 0.6rem; }
+
+.campo-cidade { position: relative; }
+.campo-cidade input { background: var(--fundo); font-size: 1.05rem; }
+.cidade-sugestoes {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: #fff;
+  color: #111;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.cidade-sugestao { display: flex; justify-content: space-between; padding: 0.5rem 0.7rem; border-radius: 6px; cursor: pointer; }
+.cidade-sugestao strong { color: var(--destaque); }
+.cidade-marcada { background: #fde2e2; }
+.cidade-nenhuma { margin: 0.3rem 0 0; color: var(--erro); font-size: 0.9rem; }
+
+/* Lista "No depósito" da tela de bipar. */
+.deposito {
+  grid-template-columns: 4.5rem 1fr auto;
+  grid-template-areas: "hora nf botoes" "hora emissor botoes";
+}
+.deposito-destino { margin-left: 0.6rem; font-weight: 700; color: var(--texto); }
+.deposito-falta { color: var(--erro); }
+.deposito-sem-destino { border-left-color: var(--erro); }
+.deposito-ocorrencia { border-left-color: #f59e0b; }
+.deposito-motivo { color: #fcd34d; }
+.deposito-botoes { grid-area: botoes; align-self: center; display: flex; gap: 0.4rem; }
+.deposito-botoes button { padding: 0.4rem 0.8rem; }

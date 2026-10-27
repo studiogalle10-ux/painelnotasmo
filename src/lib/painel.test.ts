@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { Timestamp } from 'firebase/firestore';
 import { lerChave } from './chaveAcesso';
-import { separarColunas, textoDias, type NotaPainel } from './painel';
-import type { Config } from '../tipos/firestore';
+import { paraNotaPainel, separarColunas, textoDias, type NotaPainel } from './painel';
+import type { Config, Nota } from '../tipos/firestore';
 
 const CHAVE = '35261002745352000100550010002749141153853870';
 const leitura = lerChave(CHAVE);
@@ -11,71 +12,71 @@ const dados = leitura.dados;
 const AGORA = new Date('2026-10-23T15:00:00Z');
 const HORA = 60 * 60 * 1000;
 const antes = (horas: number) => new Date(AGORA.getTime() - horas * HORA);
-const CONFIG: Config = { diasUrgencia: 5, diasEmRotaNaTv: 1 };
+const CONFIG: Config = { diasUrgencia: 4 };
 
-const preparacao = (horas: number, id = horas): NotaPainel => ({
+const nota = (horas: number, ocorrencia: string | null = null, id = horas): NotaPainel => ({
   dados: { ...dados, numero: String(id) },
-  status: 'preparacao',
   recebidaEm: antes(horas),
-  saidaEm: null,
-});
-
-const emRota = (saidaHa: number | null, id = saidaHa ?? -1): NotaPainel => ({
-  dados: { ...dados, numero: String(id) },
-  status: 'em_rota',
-  recebidaEm: antes(48),
-  saidaEm: saidaHa === null ? null : antes(saidaHa),
+  destino: { cidade: 'Campinas', uf: 'SP', ibge: 3509502 },
+  ocorrencia,
 });
 
 const numeros = (itens: { dados: { numero: string } }[]) => itens.map((i) => Number(i.dados.numero));
 
 describe('separarColunas', () => {
-  it('4 dias e 23 h ainda é Preparação; 5 dias exatos já é Urgência', () => {
-    const c = separarColunas([preparacao(4 * 24 + 23), preparacao(5 * 24)], AGORA, CONFIG);
-    expect(numeros(c.preparacao)).toEqual([4 * 24 + 23]);
-    expect(numeros(c.urgencia)).toEqual([5 * 24]);
+  it('3 dias e 23 h ainda é Depósito; 4 dias exatos já é Urgência', () => {
+    const c = separarColunas([nota(3 * 24 + 23), nota(4 * 24)], AGORA, CONFIG);
+    expect(numeros(c.deposito)).toEqual([3 * 24 + 23]);
+    expect(numeros(c.urgencia)).toEqual([4 * 24]);
   });
 
-  it('amarelo a partir de 4 dias completos (um dia antes da urgência)', () => {
-    const c = separarColunas([preparacao(3 * 24 + 23), preparacao(4 * 24)], AGORA, CONFIG);
-    const porNumero = Object.fromEntries(c.preparacao.map((i) => [Number(i.dados.numero), i.alerta]));
-    expect(porNumero[3 * 24 + 23]).toBe(false);
-    expect(porNumero[4 * 24]).toBe(true);
+  it('amarelo a partir de 3 dias completos (um dia antes da urgência)', () => {
+    const c = separarColunas([nota(2 * 24 + 23), nota(3 * 24)], AGORA, CONFIG);
+    const porNumero = Object.fromEntries(c.deposito.map((i) => [Number(i.dados.numero), i.alerta]));
+    expect(porNumero[2 * 24 + 23]).toBe(false);
+    expect(porNumero[3 * 24]).toBe(true);
   });
 
-  it('nota em rota há 23 h aparece; há 25 h some', () => {
-    const c = separarColunas([emRota(23), emRota(25)], AGORA, CONFIG);
-    expect(numeros(c.emRota)).toEqual([23]);
+  it('nota com ocorrência fica em Em Ocorrência, mesmo com muitos dias', () => {
+    const c = separarColunas([nota(1, 'Aguardando agendamento'), nota(10 * 24, 'Cliente fechado')], AGORA, CONFIG);
+    expect(numeros(c.ocorrencia)).toEqual([10 * 24, 1]);
+    expect(c.urgencia).toHaveLength(0);
+    expect(c.deposito).toHaveLength(0);
+    expect(c.ocorrencia[0].dias).toBe(10);
   });
 
-  it('nota em rota sem hora de saída (gravação pendente) aparece no topo', () => {
-    const c = separarColunas([emRota(2), emRota(null, 999)], AGORA, CONFIG);
-    expect(numeros(c.emRota)).toEqual([999, 2]);
-  });
-
-  it('Preparação e Urgência: mais antigas primeiro; Em rota: mais recentes primeiro', () => {
+  it('cada coluna mostra as mais antigas primeiro', () => {
     const c = separarColunas(
-      [preparacao(1), preparacao(50), preparacao(10), preparacao(200), preparacao(130),
-        emRota(5), emRota(1), emRota(12)],
+      [nota(1), nota(50), nota(10), nota(200), nota(130), nota(5, 'x'), nota(80, 'y')],
       AGORA,
       CONFIG,
     );
-    expect(numeros(c.preparacao)).toEqual([50, 10, 1]);
+    expect(numeros(c.deposito)).toEqual([50, 10, 1]);
     expect(numeros(c.urgencia)).toEqual([200, 130]);
-    expect(numeros(c.emRota)).toEqual([1, 5, 12]);
+    expect(numeros(c.ocorrencia)).toEqual([80, 5]);
   });
 
   it('segue os ajustes', () => {
-    const config: Config = { diasUrgencia: 3, diasEmRotaNaTv: 2 };
-    const c = separarColunas([preparacao(2 * 24), preparacao(3 * 24), emRota(47), emRota(49)], AGORA, config);
-    expect(numeros(c.urgencia)).toEqual([3 * 24]);
-    expect(c.preparacao[0].alerta).toBe(true);
-    expect(numeros(c.emRota)).toEqual([47]);
+    const c = separarColunas([nota(1 * 24), nota(2 * 24)], AGORA, { diasUrgencia: 2 });
+    expect(numeros(c.urgencia)).toEqual([2 * 24]);
+    expect(c.deposito[0].alerta).toBe(true);
+  });
+});
+
+describe('paraNotaPainel', () => {
+  const base = { recebidaEm: Timestamp.fromDate(antes(2)) } as Nota;
+
+  it('monta o destino e a ocorrência', () => {
+    const n = paraNotaPainel(dados,
+      { ...base, destinoCidade: 'Campinas', destinoUf: 'SP', destinoIbge: 3509502, ocorrencia: 'Falta volume' });
+    expect(n.destino).toEqual({ cidade: 'Campinas', uf: 'SP', ibge: 3509502 });
+    expect(n.ocorrencia).toBe('Falta volume');
   });
 
-  it('calcula os dias parada', () => {
-    const c = separarColunas([preparacao(6 * 24 + 5)], AGORA, CONFIG);
-    expect(c.urgencia[0].dias).toBe(6);
+  it('sem destino e sem ocorrência: null', () => {
+    const n = paraNotaPainel(dados, base);
+    expect(n.destino).toBeNull();
+    expect(n.ocorrencia).toBeNull();
   });
 });
 

@@ -13,8 +13,8 @@ Sistema web para registrar NF-e só por bipagem do código de barras do DANFE e 
 
 ## Regras do projeto
 - Interface e mensagens em português do Brasil.
-- Regra de ouro: nenhum preenchimento manual para registrar nota. Bipou, entrou.
-- "Urgência" é calculada no front (status `preparacao` + dias desde `recebidaEm` >= `diasUrgencia`), nunca gravada.
+- Regra de ouro: nenhum preenchimento manual para registrar nota. Bipou, entrou. Depois da 1ª bipagem o operador só escolhe o destino (cidade + UF da lista do IBGE) e, se precisar, escreve uma ocorrência.
+- Colunas da TV calculadas no front, nunca gravadas: com `ocorrencia` → Em Ocorrência; senão dias desde `recebidaEm` >= `diasUrgencia` → Urgência; senão Depósito. 2ª bipagem (`em_rota`) tira da TV.
 - A chave de acesso (44 caracteres) é o ID do documento em `notas` — garante que a nota não duplica.
 - Entrada/saída sempre via transação do Firestore.
 - Datas como Timestamp do Firestore; exibir em America/Sao_Paulo.

@@ -14,7 +14,8 @@ import { criarFiltroRepeticao } from '../lib/repeticao';
 import { liberarSom, somLiberado, tocar } from '../lib/sons';
 import { Ajustes } from '../componentes/Ajustes';
 import { CampoLeitura } from '../componentes/CampoLeitura';
-import { EmRotaNaTv } from '../componentes/EmRotaNaTv';
+import { ListaDeposito } from '../componentes/ListaDeposito';
+import { QuadroNota, type NotaAberta } from '../componentes/QuadroNota';
 import { ResultadoBipagem, type Mensagem } from '../componentes/ResultadoBipagem';
 import { UltimasBipagens } from '../componentes/UltimasBipagens';
 import { Rodape } from '../componentes/Rodape';
@@ -52,6 +53,11 @@ export function Bipar() {
   const [mensagem, setMensagem] = useState<Mensagem | null>(null);
   const [digitando, setDigitando] = useState(false);
   const [ajustando, setAjustando] = useState(false);
+  // Quadro de destino/ocorrência aberto. Enquanto estiver aberto, nenhuma bipagem é registrada
+  // (o destino é obrigatório; e a fila lê o ref, não o estado da renderização antiga).
+  const [quadro, setQuadro] = useState<{ nota: NotaAberta; nova: boolean } | null>(null);
+  const quadroRef = useRef(quadro);
+  useEffect(() => { quadroRef.current = quadro; }, [quadro]);
   const [somOk, setSomOk] = useState(somLiberado());
 
   // O navegador só libera o som depois de um clique ou tecla (o leitor conta como tecla).
@@ -88,6 +94,10 @@ export function Bipar() {
       return;
     }
     const d = lida.dados;
+    if (quadroRef.current) {
+      avisarQuadroAberto();
+      return;
+    }
     if (filtro.ehRepeticao(d.chave)) {
       mostrar({ tom: 'neutro', titulo: 'Leitura repetida ignorada', detalhe: tituloNF(d) });
       return;
@@ -97,18 +107,19 @@ export function Bipar() {
     try {
       const r = await biparNota(db, d.chave, { uid: usuario!.uid, aparelho });
       if (r.tipo === 'entrada') {
-        completarEmissor(mostrar({ tom: 'entrada', titulo: `${tituloNF(d)} · Preparação`, detalhe: detalheNF(d) }), d);
+        completarEmissor(mostrar({ tom: 'entrada', titulo: `${tituloNF(d)} · Depósito`, detalhe: detalheNF(d) }), d);
         tocar('entrada');
+        abrirQuadro({ nota: { dados: d, destino: null, ocorrencia: null }, nova: true });
       } else if (r.tipo === 'saida') {
-        completarEmissor(mostrar({ tom: 'saida', titulo: `${tituloNF(d)} · Em rota`, detalhe: detalheNF(d) }), d);
+        completarEmissor(mostrar({ tom: 'saida', titulo: `${tituloNF(d)} · Saiu`, detalhe: detalheNF(d) }), d);
         tocar('saida');
       } else if (r.tipo === 'ja_despachada') {
         mostrar({
           tom: 'aviso',
-          titulo: `${tituloNF(d)} já foi despachada`,
+          titulo: `${tituloNF(d)} já saiu`,
           detalhe: r.saidaEm
             ? `Saiu em ${formatarData(r.saidaEm)} às ${formatarHora(r.saidaEm)}`
-            : 'A nota já está em rota.',
+            : 'A nota já deu saída.',
         });
         tocar('aviso');
       } else {
@@ -121,6 +132,30 @@ export function Bipar() {
       mostrar({ tom: 'erro', titulo: `${tituloNF(d)} não foi registrada`, detalhe: mensagemFalha(e) });
       tocar('erro');
     }
+  }
+
+  function abrirQuadro(q: { nota: NotaAberta; nova: boolean }) {
+    quadroRef.current = q;
+    setQuadro(q);
+  }
+
+  function fecharQuadro() {
+    quadroRef.current = null;
+    setQuadro(null);
+    // O aviso de "termine o destino" não vale mais depois que o quadro fechou.
+    setMensagem((m) => (m?.titulo === 'Bipagem não registrada' ? null : m));
+  }
+
+  /** Bipou com o quadro aberto (no campo principal ou caindo dentro de um campo do quadro). */
+  function avisarQuadroAberto() {
+    const q = quadroRef.current;
+    if (!q) return;
+    mostrar({
+      tom: 'erro',
+      titulo: 'Bipagem não registrada',
+      detalhe: `Termine o destino da ${tituloNF(q.nota.dados)} e clique em Salvar. Depois bipe de novo.`,
+    });
+    tocar('erro');
   }
 
   /** Leituras em sequência: cada uma espera a anterior terminar. */
@@ -157,18 +192,23 @@ export function Bipar() {
 
       <ResultadoBipagem mensagem={mensagem} />
 
+      {quadro && (
+        <QuadroNota key={quadro.nota.dados.chave} nota={quadro.nota} nova={quadro.nova} autor={autor}
+          onFechar={fecharQuadro} onBipagemNoCampo={avisarQuadroAberto} />
+      )}
+
       <CampoLeitura onLer={aoLer} digitando={digitando} />
 
       <div className="bipar-acoes">
-        <span className="ultimas-aviso">1ª bipagem: Preparação · 2ª bipagem: Em rota</span>
+        <span className="ultimas-aviso">1ª bipagem: entra no Depósito · 2ª bipagem: saiu</span>
         <button className="botao-link" onClick={() => setDigitando((v) => !v)}>
           {digitando ? 'Voltar ao leitor' : 'Código danificado? Digitar chave'}
         </button>
       </div>
 
       <section className="bipar-ultimas">
-        <h2>Em rota na TV</h2>
-        <EmRotaNaTv autor={autor} diasEmRotaNaTv={config.diasEmRotaNaTv} />
+        <h2>No depósito (o que está na TV)</h2>
+        <ListaDeposito autor={autor} onAbrir={(nota) => abrirQuadro({ nota, nova: false })} />
       </section>
 
       <section className="bipar-ultimas">

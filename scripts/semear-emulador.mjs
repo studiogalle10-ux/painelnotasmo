@@ -28,13 +28,19 @@ const HORA = 60 * 60 * 1000;
 const agora = Date.now();
 const ha = (horas) => Timestamp.fromMillis(agora - horas * HORA);
 
-// recebidaHa / saidaHa em horas.
+const CAMPINAS = ['Campinas', 'SP', 3509502];
+const CURITIBA = ['Curitiba', 'PR', 4106902];
+const BH = ['Belo Horizonte', 'MG', 3106200];
+
+// recebidaHa / saidaHa em horas; destino [cidade, UF, IBGE]; sem destino = esqueceram de preencher.
 const NOTAS = [
-  { cnpj: '02745352000100', numero: 274915, recebidaHa: 2 },
-  { cnpj: '11222333000181', numero: 1201, recebidaHa: 30 },
-  { cnpj: '02745352000100', numero: 274880, recebidaHa: 4 * 24 + 3 },
-  { cnpj: '11222333000181', numero: 1150, recebidaHa: 6 * 24 },
-  { cnpj: '02745352000100', numero: 274850, recebidaHa: 8 * 24 },
+  { cnpj: '02745352000100', numero: 274915, recebidaHa: 2, destino: CAMPINAS },
+  { cnpj: '11222333000181', numero: 1201, recebidaHa: 30, destino: CURITIBA },
+  { cnpj: '02745352000100', numero: 274880, recebidaHa: 3 * 24 + 3, destino: BH },
+  { cnpj: '11222333000181', numero: 1150, recebidaHa: 6 * 24, destino: CAMPINAS },
+  { cnpj: '02745352000100', numero: 274850, recebidaHa: 8 * 24, destino: CURITIBA,
+    ocorrencia: 'Aguardando agendamento do cliente' },
+  { cnpj: '11222333000181', numero: 1160, recebidaHa: 5 },
   { cnpj: '11222333000181', numero: 1190, recebidaHa: 26, saidaHa: 1 },
   { cnpj: '02745352000100', numero: 274700, recebidaHa: 3 * 24, saidaHa: 30 },
 ];
@@ -51,7 +57,7 @@ const env = await initializeTestEnvironment({
 await env.clearFirestore();
 await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();
-  await setDoc(doc(db, 'config', 'geral'), { diasUrgencia: 5, diasEmRotaNaTv: 1 });
+  await setDoc(doc(db, 'config', 'geral'), { diasUrgencia: 4 });
   await setDoc(doc(db, 'emitentes', '11222333000181'), {
     razaoSocial: 'DISTRIBUIDORA EXEMPLO LTDA', nomeFantasia: 'Exemplo Distribuidora', consultadoEm: ha(0),
   });
@@ -68,6 +74,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
       numero: c.slice(25, 34), tpEmis: '1', codigoNumerico: c.slice(35, 43),
       status: 'preparacao', recebidaEm: ha(n.recebidaHa), recebidaPor: 'painel',
       ultimoEventoId: entrada,
+      ...(n.destino ? { destinoCidade: n.destino[0], destinoUf: n.destino[1], destinoIbge: n.destino[2] } : {}),
+      ...(n.ocorrencia ? { ocorrencia: n.ocorrencia, ocorrenciaEm: ha(1) } : {}),
     };
     if (n.saidaHa !== undefined) {
       await setDoc(doc(db, 'eventos', saida), {
