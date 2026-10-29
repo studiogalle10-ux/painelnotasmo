@@ -235,17 +235,17 @@ input {
   background: #1b1f2b;
   border-left: 0.8vh solid #3b82f6;
   overflow: hidden;
-  line-height: 1.15; /* altura fixa: as 4 linhas têm que caber sem cortar */
+  line-height: 1.2; /* altura fixa: as 4 linhas têm que caber sem cortar */
 }
 .cartao-linha { display: flex; justify-content: space-between; align-items: baseline; gap: 1vw; }
-.cartao-nf { font-size: 4vh; font-weight: 700; white-space: nowrap; }
-.cartao-serie { font-size: 2.2vh; font-weight: 400; color: #94a3b8; }
-.cartao-dias { font-size: 3.4vh; font-weight: 700; white-space: nowrap; }
-.cartao-emissor { font-size: 2.5vh; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cartao-recebida { font-size: 2.1vh; color: #94a3b8; }
-.cartao-destino { font-size: 3.3vh; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: 0.02em; }
+.cartao-nf { font-size: 3.3vh; font-weight: 700; white-space: nowrap; }
+.cartao-serie { font-size: 1.9vh; font-weight: 400; color: #94a3b8; }
+.cartao-dias { font-size: 2.9vh; font-weight: 700; white-space: nowrap; }
+.cartao-emissor { font-size: 2.1vh; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cartao-recebida { font-size: 1.8vh; color: #94a3b8; }
+.cartao-destino { font-size: 2.8vh; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: 0.02em; }
 .cartao-sem-destino { color: #fca5a5; }
-.cartao-motivo { font-size: 2.3vh; font-weight: 600; color: #fde68a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cartao-motivo { font-size: 1.9vh; font-weight: 600; color: #fde68a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .cartao-alerta { background: #3b2a05; border-left-color: #facc15; }
 .cartao-alerta .cartao-dias { color: #fde047; }

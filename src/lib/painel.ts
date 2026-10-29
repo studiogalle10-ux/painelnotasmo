@@ -31,9 +31,9 @@ export type TipoColuna = 'ocorrencia' | 'deposito' | 'urgencia';
 
 /** Altura fixa de cada card na TV, em % da altura da tela (a paginação conta com ela). */
 export const ALTURA_CARTAO_VH: Record<TipoColuna, number> = {
-  ocorrencia: 17,
-  deposito: 17,
-  urgencia: 17,
+  ocorrencia: 13.4,
+  deposito: 13.4,
+  urgencia: 13.4,
 };
 
 /** Campos da nota que a TV e a tela de bipar usam. */
