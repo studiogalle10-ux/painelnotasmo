@@ -1,5 +1,6 @@
 // Separa um MP3 único (as 16 falas lidas em sequência) em vozes/01.mp3 … 16.mp3.
-// Alinha as frases do roteiro às pausas do áudio pelo tamanho de cada frase (programação dinâmica).
+// Usa a transcrição com tempo por palavra (node transcrever.mjs) para achar onde cada fala começa e
+// termina. Se a voz leu também os títulos do FALAS.md ("01. Abertura, arquivo 01.mp3"), eles ficam de fora.
 // Uso: node separar.mjs "<arquivo.mp3>"            → mostra os cortes
 //      node separar.mjs "<arquivo.mp3>" --gravar   → grava os 16 arquivos
 import fs from 'fs';
@@ -10,65 +11,61 @@ import { CENAS } from './roteiro.mjs';
 
 const [arquivo, opcao] = process.argv.slice(2);
 if (!arquivo) throw new Error('Informe o MP3.');
+const palavras = JSON.parse(fs.readFileSync('saida/palavras.json', 'utf8'));
+const normal = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-const analise = spawnSync(ffmpeg, ['-hide_banner', '-i', arquivo, '-af', 'silencedetect=noise=-40dB:d=0.18', '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
+// Silêncios, para encostar os cortes nas pausas.
+const analise = spawnSync(ffmpeg, ['-hide_banner', '-i', arquivo, '-af', 'silencedetect=noise=-40dB:d=0.12', '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
 const total = (() => { const [, h, m, s] = /Duration: (\d+):(\d+):([\d.]+)/.exec(analise); return +h * 3600 + +m * 60 + +s; })();
-const inicios = [...analise.matchAll(/silence_start: ([\d.]+)/g)].map((m) => +m[1]);
-const fins = [...analise.matchAll(/silence_end: ([\d.]+)/g)].map((m) => +m[1]);
-const pausas = inicios.map((s, i) => ({ s, e: fins[i] ?? total })).filter((p) => p.s > 0.3 && p.e < total - 0.3);
-const falaIni = fins[0] && inicios[0] < 0.05 ? fins[0] : 0; // silêncio no começo
-const falaFim = inicios.at(-1) && (fins.at(-1) ?? total) >= total - 0.05 ? inicios.at(-1) : total;
+const sIni = [...analise.matchAll(/silence_start: ([\d.]+)/g)].map((m) => +m[1]);
+const sFim = [...analise.matchAll(/silence_end: ([\d.]+)/g)].map((m) => +m[1]);
+const silencios = sIni.map((s, i) => ({ s, e: sFim[i] ?? total }));
 
-// Frases do roteiro, marcando onde termina cada fala.
-const frases = [];
-CENAS.forEach((c, i) => {
-  const partes = c.fala.split(/(?<=[.!?:])\s+/);
-  partes.forEach((t, j) => frases.push({ letras: t.length, fala: i, ultima: j === partes.length - 1 }));
-});
-const letras = frases.reduce((t, f) => t + f.letras, 0);
-const somPorLetra = (falaFim - falaIni - pausas.reduce((t, p) => t + p.e - p.s, 0) * 0.5) / letras;
+// Onde a voz leu "arquivo NN.mp3": a fala começa logo depois.
+const titulos = palavras.flatMap((p, i) => (/mp3/i.test(p.texto) ? [i] : []));
+if (titulos.length !== CENAS.length) {
+  throw new Error(`Achei ${titulos.length} leituras de "arquivo NN.mp3"; esperava ${CENAS.length}.`);
+}
+const inicioTitulo = (k) => { // a palavra "arquivo" antes do NN.mp3, voltando até o número do título
+  let i = titulos[k];
+  while (i > 0 && !/^arquivo/i.test(palavras[i].texto)) i--;
+  return i;
+};
 
-// dp[k][j]: melhor custo com a frase k terminando na pausa j.
-const N = frases.length, P = pausas.length;
-const custoFrase = (dur, f) => { const esp = f.letras * somPorLetra; return (dur - esp) ** 2 / esp; };
-const bonusPausa = (p) => -0.8 * Math.log(p.e - p.s);
-const dp = Array.from({ length: N }, () => new Array(P).fill(Infinity));
-const de = Array.from({ length: N }, () => new Array(P).fill(-1));
-for (let j = 0; j < P; j++) dp[0][j] = custoFrase(pausas[j].s - falaIni, frases[0]) + bonusPausa(pausas[j]);
-for (let k = 1; k < N - 1; k++) {
-  for (let j = k; j < P; j++) {
-    for (let i = k - 1; i < j; i++) {
-      if (dp[k - 1][i] === Infinity) continue;
-      const c = dp[k - 1][i] + custoFrase(pausas[j].s - pausas[i].e, frases[k]) + bonusPausa(pausas[j]);
-      if (c < dp[k][j]) { dp[k][j] = c; de[k][j] = i; }
+const cortes = CENAS.map((cena, k) => {
+  const primeira = titulos[k] + 1;
+  // Última palavra da fala: procura o fim do texto do roteiro antes do próximo título.
+  const ultimaDoRoteiro = normal(cena.fala.split(/\s+/).at(-1));
+  let ultima;
+  if (k === CENAS.length - 1) ultima = palavras.length - 1;
+  else {
+    const limite = inicioTitulo(k + 1);
+    ultima = limite - 1;
+    for (let i = limite - 1; i > primeira; i--) {
+      if (normal(palavras[i].texto).endsWith(ultimaDoRoteiro.slice(-5))) { ultima = i; break; }
     }
   }
-}
-// Última frase vai até o fim do áudio.
-let melhor = Infinity, jFim = -1;
-for (let j = 0; j < P; j++) {
-  const c = dp[N - 2][j] + custoFrase(falaFim - pausas[j].e, frases[N - 1]);
-  if (c < melhor) { melhor = c; jFim = j; }
-}
-const fimDaFrase = new Array(N);
-fimDaFrase[N - 2] = jFim;
-for (let k = N - 2; k > 0; k--) fimDaFrase[k - 1] = de[k][fimDaFrase[k]];
-
-// Cortes das falas: no meio da pausa depois da última frase de cada fala.
-const cortes = [0];
-frases.forEach((f, k) => {
-  if (f.ultima && k < N - 1) { const p = pausas[fimDaFrase[k]]; cortes.push((p.s + p.e) / 2); }
+  const ini = palavras[primeira].ini, fim = palavras[ultima].fim;
+  // Encosta nas pausas: começa no fim do silêncio antes da 1ª palavra, termina no início do silêncio depois da última.
+  // Antes: a maior pausa entre o "mp3" e a 2ª palavra (o tempo da 1ª palavra às vezes vem adiantado).
+  const segunda = palavras[primeira + 1]?.ini ?? ini + 1;
+  const antes = silencios.filter((s) => s.s >= palavras[titulos[k]].ini + 0.3 && s.e <= segunda)
+    .sort((a, b) => (b.e - b.s) - (a.e - a.s))[0];
+  const depois = silencios.find((s) => s.s >= fim - 0.25);
+  return {
+    ini: antes ? Math.max(0, antes.e - 0.05) : ini - 0.1,
+    fim: depois ? Math.min(total, depois.s + 0.12) : fim + 0.15,
+    texto: palavras.slice(primeira, ultima + 1).map((p) => p.texto).join(' '),
+  };
 });
-cortes.push(total);
 
 fs.mkdirSync('vozes', { recursive: true });
-CENAS.forEach((c, i) => {
-  const ini = cortes[i], fim = cortes[i + 1];
-  const esp = c.fala.length * somPorLetra;
-  console.log(`${String(i + 1).padStart(2, '0')} ${c.id.padEnd(11)} ${ini.toFixed(2).padStart(7)} → ${fim.toFixed(2).padStart(7)}  (${(fim - ini).toFixed(1)}s, esperado ~${esp.toFixed(1)}s)`);
+cortes.forEach((c, i) => {
+  const n = String(i + 1).padStart(2, '0');
+  console.log(`${n} ${c.ini.toFixed(2).padStart(7)} → ${c.fim.toFixed(2).padStart(7)}  ${c.texto}`);
   if (opcao === '--gravar') {
-    spawnSync(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-i', arquivo, '-ss', ini.toFixed(3), '-to', fim.toFixed(3),
-      '-af', 'silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse',
-      '-c:a', 'libmp3lame', '-b:a', '160k', path.join('vozes', `${String(i + 1).padStart(2, '0')}.mp3`)]);
+    spawnSync(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-i', arquivo, '-ss', c.ini.toFixed(3), '-to', c.fim.toFixed(3),
+      '-af', 'afade=t=in:d=0.03,areverse,afade=t=in:d=0.06,areverse', '-c:a', 'libmp3lame', '-b:a', '160k',
+      path.join('vozes', `${n}.mp3`)]);
   }
 });
