@@ -25,6 +25,17 @@ fs.mkdirSync(CENAS_DIR, { recursive: true });
 fs.writeFileSync(path.join(CENAS_DIR, 'falas.json'), JSON.stringify(CENAS.map(({ id, fala }) => ({ id, fala }))), 'utf8');
 rodar('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'narrar.ps1', path.join(CENAS_DIR, 'falas.json'), CENAS_DIR]);
 
+// Voz gravada em outro site (vozes/01.mp3 … 16.mp3, na ordem do roteiro) substitui a do Windows.
+const VOZES = path.resolve('vozes');
+CENAS.forEach((cena, i) => {
+  const numero = String(i + 1).padStart(2, '0');
+  const gravada = ['mp3', 'wav', 'm4a'].map((ext) => path.join(VOZES, `${numero}.${ext}`)).find((a) => fs.existsSync(a));
+  if (!gravada) return;
+  rodar(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-i', gravada,
+    '-ar', '44100', '-ac', '1', '-c:a', 'pcm_s16le', path.join(CENAS_DIR, `${cena.id}.wav`)]);
+  console.log(`voz gravada: ${numero} (${cena.id})`);
+});
+
 /** Duração de um WAV PCM (lê o cabeçalho). */
 function duracaoWav(arquivo) {
   const b = fs.readFileSync(arquivo);
