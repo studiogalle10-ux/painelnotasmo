@@ -235,6 +235,7 @@ input {
   background: #1b1f2b;
   border-left: 0.8vh solid #3b82f6;
   overflow: hidden;
+  line-height: 1.15; /* altura fixa: as 4 linhas têm que caber sem cortar */
 }
 .cartao-linha { display: flex; justify-content: space-between; align-items: baseline; gap: 1vw; }
 .cartao-nf { font-size: 4vh; font-weight: 700; white-space: nowrap; }

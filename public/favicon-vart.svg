@@ -5,7 +5,7 @@
   </defs>
   <rect width="64" height="64" rx="14" fill="#0f1117"/>
   <g transform="translate(5 17) scale(0.48)">
-    <polygon points="2,2 30,2 62,60 48,60" fill="url(#c)" stroke="url(#c)" stroke-width="3" stroke-linejoin="round"/>
-    <polygon points="82,2 110,2 60,58 47,36" fill="url(#a)" stroke="url(#a)" stroke-width="3" stroke-linejoin="round"/>
+    <polygon points="4,4 30,4 63,60 49,60" fill="url(#c)" stroke="url(#c)" stroke-width="3" stroke-linejoin="round"/>
+    <polygon points="82,4 108,4 63,60 49,60" fill="url(#a)" stroke="url(#a)" stroke-width="3" stroke-linejoin="round"/>
   </g>
 </svg>
