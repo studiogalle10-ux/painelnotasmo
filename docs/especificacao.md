@@ -1,4 +1,4 @@
-# Painel de NFs na TV — MO Transportes
+# Painel de NFs na TV — MO Transportes (marca VART)
 
 Especificação v1.3 (Firebase, versão simples) · 27/10/2026
 
@@ -17,7 +17,7 @@ Sistema web onde cada NF-e é registrada só pela bipagem do código de barras d
 | --- | --- | --- | --- |
 | Front-end | React + Vite + TypeScript | Telas TV e bipagem | Grátis |
 | Banco + tempo real | Firebase Firestore | Notas, emissores, eventos; TV atualiza sozinha | Plano Spark (grátis, sem pausa) |
-| Login | Firebase Authentication (e-mail e senha) | Uma conta só do painel; a tela pede só a senha | Grátis |
+| Login | Firebase Authentication (e-mail e senha) | Uma conta só do painel; a tela pede usuário (`motransportes`) e senha | Grátis |
 | Hospedagem | Firebase Hosting (alternativa: Netlify) | Publicar o site | Grátis |
 | Nome do emissor | BrasilAPI (CNPJ), chamada direto do navegador | CNPJ → razão social, com cache | Grátis |
 | Domínio | ex.: painel.motransportes10.com.br | Endereço fixo | Já existe |

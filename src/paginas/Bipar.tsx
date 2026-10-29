@@ -18,6 +18,7 @@ import { ListaDeposito } from '../componentes/ListaDeposito';
 import { QuadroNota, type NotaAberta } from '../componentes/QuadroNota';
 import { ResultadoBipagem, type Mensagem } from '../componentes/ResultadoBipagem';
 import { UltimasBipagens } from '../componentes/UltimasBipagens';
+import { LogoVart } from '../componentes/LogoVart';
 import { Rodape } from '../componentes/Rodape';
 
 function mensagemFalha(e: unknown): string {
@@ -169,8 +170,8 @@ export function Bipar() {
     <main className="bipar">
       <header className="topo">
         <div className="topo-usuario">
-          <img className="logo logo-bipar" src="/logo-mo.png" alt="MO Transportes" />
-          <strong>Painel de NFs</strong>
+          <LogoVart className="logo-bipar" />
+          <strong>Painel de NFs <small>· MO Transportes</small></strong>
           <span className={online ? 'conexao conexao-ok' : 'conexao conexao-off'}>
             {online ? 'Online' : 'Sem internet'}
           </span>

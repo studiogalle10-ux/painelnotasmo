@@ -1,11 +1,11 @@
-/* Base mínima; o visual de cada tela entra na etapa 5. */
+/* Identidade VART: azul #3B82F6, fundo #0F1117, claro #E5E7EB. */
 :root {
-  --fundo: #0f1115;
-  --superficie: #1a1d24;
-  --texto: #f2f4f8;
-  --texto-suave: #a8b0bf;
-  --borda: #2c313c;
-  --destaque: #a51e22; /* vermelho da logo da MO */
+  --fundo: #0f1117;
+  --superficie: #181b25;
+  --texto: #e5e7eb;
+  --texto-suave: #9ca3af;
+  --borda: #2a2f3d;
+  --destaque: #3b82f6; /* azul da VART */
   --erro: #f87171;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--texto);
@@ -181,8 +181,8 @@ input {
   flex-direction: column;
   gap: 1.5vh;
   padding: 1.8vh 1.5vw;
-  background: #07090c;
-  color: #f8fafc;
+  background: #0b0d12;
+  color: #f3f4f6;
 }
 
 .tv-topo { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
@@ -202,7 +202,7 @@ input {
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-height: 0;
-  background: #0f141b;
+  background: #12151f;
   border-radius: 1.2vh;
   padding: 1.2vh 0.9vw;
 }
@@ -215,7 +215,7 @@ input {
   text-align: center;
   padding: 0.2vh 1vh;
   border-radius: 1vh;
-  background: #1e293b;
+  background: #3b82f6;
 }
 .coluna-urgencia { background: #1f0a0a; box-shadow: inset 0 0 0 0.4vh #dc2626; }
 .coluna-urgencia .coluna-topo h2 { color: #fca5a5; }
@@ -232,8 +232,8 @@ input {
   gap: 0.4vh;
   padding: 0 1vw;
   border-radius: 1vh;
-  background: #1a222d;
-  border-left: 0.8vh solid #475569;
+  background: #1b1f2b;
+  border-left: 0.8vh solid #3b82f6;
   overflow: hidden;
 }
 .cartao-linha { display: flex; justify-content: space-between; align-items: baseline; gap: 1vw; }
@@ -270,12 +270,18 @@ input {
 
 .login-dica { color: var(--texto-suave); font-size: 0.9rem; text-align: center; margin: 0; }
 
-/* A logo tem partes pretas: fica num cartão branco para aparecer no fundo escuro. */
-.logo { display: block; background: #fff; border-radius: 10px; object-fit: contain; }
-.logo-tv { height: 8vh; padding: 0.6vh 0.8vh; border-radius: 1vh; }
-.logo-bipar { height: 2.6rem; padding: 0.2rem 0.35rem; border-radius: 6px; }
-.logo-login { height: 7rem; padding: 0.6rem 0.9rem; margin: 0 auto 0.5rem; }
-.login h1 { margin-top: 0.5rem; }
+/* Logo VART (SVG): o texto usa a cor do texto da tela. */
+.logo-vart { color: var(--texto); }
+.logo-vart svg { display: block; height: 100%; width: auto; }
+.logo-tv { height: 6vh; }
+.logo-bipar { height: 1.9rem; }
+.logo-login { display: grid; justify-items: center; gap: 0.9rem; margin: 0 auto 1rem; }
+.logo-login svg { height: 4.2rem; }
+.logo-slogan { margin: 0; font-size: 0.72rem; letter-spacing: 0.32em; text-transform: uppercase; color: var(--texto-suave); text-align: center; }
+.login h1 { margin-top: 0.5rem; font-weight: 600; font-size: 1.3rem; letter-spacing: 0.04em; }
+.topo-usuario small { color: var(--texto-suave); font-weight: 400; }
+.tv-marca span { display: grid; }
+.tv-marca small { font-size: 2vh; color: #9ca3af; font-weight: 400; }
 
 .rodape {
   display: grid;
@@ -355,7 +361,7 @@ input {
 }
 .cidade-sugestao { display: flex; justify-content: space-between; padding: 0.5rem 0.7rem; border-radius: 6px; cursor: pointer; }
 .cidade-sugestao strong { color: var(--destaque); }
-.cidade-marcada { background: #fde2e2; }
+.cidade-marcada { background: #dbeafe; }
 .cidade-nenhuma { margin: 0.3rem 0 0; color: var(--erro); font-size: 0.9rem; }
 
 /* Lista "No depósito" da tela de bipar. */

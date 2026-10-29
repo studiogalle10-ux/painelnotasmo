@@ -8,6 +8,7 @@ import { useNotasGalpao } from '../lib/notasGalpao';
 import { useOnline } from '../lib/conexao';
 import { useConfig } from '../lib/config';
 import { ColunaTv } from '../componentes/ColunaTv';
+import { LogoVart } from '../componentes/LogoVart';
 import { Rodape } from '../componentes/Rodape';
 import type { Emitente } from '../tipos/firestore';
 
@@ -109,8 +110,8 @@ export function Tv() {
     <main className="tv" onClick={() => { if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {}); }}>
       <header className="tv-topo">
         <div className="tv-marca">
-          <img className="logo logo-tv" src="/logo-mo.png" alt="MO Transportes" />
-          <span>Painel de NFs</span>
+          <LogoVart className="logo-tv" />
+          <span>Painel de NFs<small>MO Transportes</small></span>
         </div>
         <Relogio />
         <div className="tv-estado">

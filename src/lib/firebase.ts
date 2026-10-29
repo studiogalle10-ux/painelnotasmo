@@ -25,5 +25,12 @@ if (usandoEmulador) {
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
 }
 
-/** Conta única do painel: a tela de login só pede a senha. As regras do Firestore só aceitam ela. */
+/** Conta única do painel. As regras do Firestore só aceitam ela. */
 export const EMAIL_PAINEL = 'painel@painelmotnsp.firebaseapp.com';
+
+/** Usuário digitado na tela de login → conta do Firebase. */
+const USUARIOS: Record<string, string> = { motransportes: EMAIL_PAINEL };
+
+export function emailDoUsuario(usuario: string): string | null {
+  return USUARIOS[usuario.trim().toLowerCase()] ?? null;
+}

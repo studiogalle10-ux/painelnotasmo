@@ -2,13 +2,16 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
-import { auth, EMAIL_PAINEL } from '../lib/firebase';
+import { auth, emailDoUsuario } from '../lib/firebase';
 import { useSessao } from '../lib/sessao';
+import { LogoVart } from '../componentes/LogoVart';
 import { Rodape } from '../componentes/Rodape';
+
+const ERRO_CREDENCIAIS = 'Usuário ou senha incorretos.';
 
 function mensagemErro(e: unknown): string {
   if (e instanceof FirebaseError) {
-    if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') return 'Senha incorreta.';
+    if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') return ERRO_CREDENCIAIS;
     if (e.code === 'auth/too-many-requests') {
       return 'Muitas tentativas. Aguarde um pouco e tente de novo.';
     }
@@ -17,10 +20,11 @@ function mensagemErro(e: unknown): string {
   return 'Não foi possível entrar. Tente de novo.';
 }
 
-/** Só a senha do painel. Depois de entrar, o aparelho fica conectado. */
+/** Usuário e senha do painel. Depois de entrar, o aparelho fica conectado. */
 export function Login() {
   const { carregando, usuario } = useSessao();
   const local = useLocation();
+  const [nome, setNome] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -33,9 +37,14 @@ export function Login() {
   async function entrar(e: FormEvent) {
     e.preventDefault();
     setErro(null);
+    const email = emailDoUsuario(nome);
+    if (!email) {
+      setErro(ERRO_CREDENCIAIS);
+      return;
+    }
     setEnviando(true);
     try {
-      await signInWithEmailAndPassword(auth, EMAIL_PAINEL, senha);
+      await signInWithEmailAndPassword(auth, email, senha);
     } catch (err) {
       setErro(mensagemErro(err));
     } finally {
@@ -45,13 +54,17 @@ export function Login() {
 
   return (
     <main className="login">
-      <img className="logo logo-login" src="/logo-mo.png" alt="MO Transportes" />
+      <LogoVart className="logo-login" slogan />
       <h1>Painel de NFs</h1>
       <form onSubmit={entrar}>
-        <input type="email" autoComplete="username" value={EMAIL_PAINEL} readOnly hidden />
         <label>
-          Senha do painel
-          <input type="password" autoComplete="current-password" value={senha} autoFocus
+          Usuário
+          <input type="text" autoComplete="username" autoCapitalize="none" spellCheck={false}
+            value={nome} autoFocus onChange={(e) => setNome(e.target.value)} required />
+        </label>
+        <label>
+          Senha
+          <input type="password" autoComplete="current-password" value={senha}
             onChange={(e) => setSenha(e.target.value)} required />
         </label>
         {erro && <p className="erro">{erro}</p>}
