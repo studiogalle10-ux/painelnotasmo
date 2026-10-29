@@ -1,0 +1,21 @@
+{
+  "name": "Painel de NFs — VART",
+  "short_name": "Painel de NFs",
+  "description": "Bipagem de NF-e e painel da TV do galpão.",
+  "lang": "pt-BR",
+  "id": "/",
+  "start_url": "/bipar",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "icons": [
+    { "src": "/icones/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icones/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icones/icone-mascara-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Bipar", "url": "/bipar", "icons": [{ "src": "/icones/icone-192.png", "sizes": "192x192" }] },
+    { "name": "Abrir TV", "url": "/tv", "icons": [{ "src": "/icones/icone-192.png", "sizes": "192x192" }] }
+  ]
+}
