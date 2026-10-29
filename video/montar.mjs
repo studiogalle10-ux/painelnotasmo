@@ -25,10 +25,10 @@ fs.mkdirSync(CENAS_DIR, { recursive: true });
 fs.writeFileSync(path.join(CENAS_DIR, 'falas.json'), JSON.stringify(CENAS.map(({ id, fala }) => ({ id, fala }))), 'utf8');
 rodar('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'narrar.ps1', path.join(CENAS_DIR, 'falas.json'), CENAS_DIR]);
 
-// Voz gravada em outro site (vozes/01.mp3 … 16.mp3, na ordem do roteiro) substitui a do Windows.
+// Voz gravada em outro site (vozes/NN.mp3, NN = cena.voz) substitui a do Windows.
 const VOZES = path.resolve('vozes');
-CENAS.forEach((cena, i) => {
-  const numero = String(i + 1).padStart(2, '0');
+CENAS.forEach((cena) => {
+  const numero = cena.voz;
   const gravada = ['mp3', 'wav', 'm4a'].map((ext) => path.join(VOZES, `${numero}.${ext}`)).find((a) => fs.existsSync(a));
   if (!gravada) return;
   rodar(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-i', gravada,
@@ -110,7 +110,7 @@ function htmlAbertura() {
       ${logo(820)}
       <div style="font-size:30px;letter-spacing:.42em;color:#9ca3af;text-transform:uppercase">Tecnologia que impulsiona o seu amanhã</div>
       <div style="margin-top:40px;font-size:76px;font-weight:700">Painel de NFs</div>
-      <div style="font-size:40px;color:#9ca3af">Como usar · MO Transportes</div>
+      <div style="font-size:40px;color:#9ca3af">Como usar</div>
     </div>` };
 }
 

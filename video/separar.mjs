@@ -1,8 +1,8 @@
-// Separa um MP3 único (as 16 falas lidas em sequência) em vozes/01.mp3 … 16.mp3.
+// Separa um MP3 único (todas as falas lidas em sequência) em vozes/NN.mp3 (NN = cena.voz), na ordem do FALAS.md.
 // Usa a transcrição com tempo por palavra (node transcrever.mjs) para achar onde cada fala começa e
 // termina. Se a voz leu também os títulos do FALAS.md ("01. Abertura, arquivo 01.mp3"), eles ficam de fora.
 // Uso: node separar.mjs "<arquivo.mp3>"            → mostra os cortes
-//      node separar.mjs "<arquivo.mp3>" --gravar   → grava os 16 arquivos
+//      node separar.mjs "<arquivo.mp3>" --gravar   → grava os arquivos
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
@@ -61,7 +61,7 @@ const cortes = CENAS.map((cena, k) => {
 
 fs.mkdirSync('vozes', { recursive: true });
 cortes.forEach((c, i) => {
-  const n = String(i + 1).padStart(2, '0');
+  const n = CENAS[i].voz;
   console.log(`${n} ${c.ini.toFixed(2).padStart(7)} → ${c.fim.toFixed(2).padStart(7)}  ${c.texto}`);
   if (opcao === '--gravar') {
     spawnSync(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-i', arquivo, '-ss', c.ini.toFixed(3), '-to', c.fim.toFixed(3),

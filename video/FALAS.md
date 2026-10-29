@@ -1,21 +1,21 @@
-# Falas do vídeo (16)
+# Falas do vídeo (15)
 
 Como usar:
 
 1. No site da voz (ex.: ElevenLabs), escolha uma voz em **português do Brasil** e use a mesma em todas as falas.
-2. Cole **uma fala por vez** (só o texto da caixa), gere e baixe o MP3.
-3. Renomeie cada arquivo com o número da fala: `01.mp3`, `02.mp3` ... `16.mp3`.
-4. Coloque os 16 arquivos na pasta `video/vozes` e me avise. Eu monto o vídeo com eles.
+2. Cole **só o texto de dentro da caixa**, uma fala por vez, gere e baixe o MP3.
+3. Renomeie com o número da fala (`01.mp3`, `02.mp3`...) e coloque na pasta `video/vozes`.
+4. Me avise. Eu monto o vídeo com eles.
 
-Pode trocar palavras se quiser, mas mantenha o sentido: cada fala acompanha uma tela do vídeo.
-Se faltar algum número, aquela fala sai com a voz do Windows.
+Se gerar tudo num arquivo só, também dá: eu separo (node separar.mjs).
+Os números seguem os arquivos de áudio; o 04 (login) saiu do vídeo.
 
 ## 01 — Abertura
 
 Arquivo: `01.mp3`
 
 ```text
-Olá! Neste vídeo você vai aprender a usar o Painel de Notas Fiscais da MO Transportes, desenvolvido pela Vart. É bem simples: bipou, a nota aparece na TV do galpão.
+Olá! Neste vídeo você vai aprender a usar o Painel de Notas Fiscais da Vart. É bem simples: bipou, a nota aparece na TV do galpão.
 ```
 
 ## 02 — Instalar no computador
@@ -32,14 +32,6 @@ Arquivo: `03.mp3`
 
 ```text
 Depois, clique com o botão direito no ícone do V, na barra de tarefas, e escolha: Fixar na barra de tarefas. Pronto! O painel abre com um clique, como um programa.
-```
-
-## 04 — Entrar
-
-Arquivo: `04.mp3`
-
-```text
-Na primeira vez, entre com o usuário motransportes, tudo junto, e a senha do painel. O computador fica conectado. Não precisa digitar de novo.
 ```
 
 ## 05 — Tela de bipar

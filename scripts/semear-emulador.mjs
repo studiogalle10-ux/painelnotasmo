@@ -58,6 +58,10 @@ await env.clearFirestore();
 await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();
   await setDoc(doc(db, 'config', 'geral'), { diasUrgencia: 4 });
+  // Nomes fictícios (também usados no vídeo tutorial): nenhum cliente real aparece.
+  await setDoc(doc(db, 'emitentes', '02745352000100'), {
+    razaoSocial: 'COMERCIAL MODELO DE MOVEIS LTDA', nomeFantasia: 'Comercial Modelo', consultadoEm: ha(0),
+  });
   await setDoc(doc(db, 'emitentes', '11222333000181'), {
     razaoSocial: 'DISTRIBUIDORA EXEMPLO LTDA', nomeFantasia: 'Exemplo Distribuidora', consultadoEm: ha(0),
   });

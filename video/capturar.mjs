@@ -41,6 +41,11 @@ async function foto(pagina, nome, alvos = {}) {
   console.log('tela', nome);
 }
 
+/** O vídeo serve para qualquer cliente: esconde o nome da empresa no topo das telas. */
+function semCliente(pagina) {
+  return pagina.addStyleTag({ content: '.topo-usuario small, .tv-marca small { display: none !important; }' });
+}
+
 async function rolarAte(pagina, seletor) {
   await pagina.evaluate((s) => document.querySelector(s)?.scrollIntoView({ block: 'center' }), seletor);
   await espera(300);
@@ -56,13 +61,11 @@ try {
   await bipar.waitForSelector('input[type=password]');
   await bipar.type('input[type=text]', USUARIO, { delay: 20 });
   await bipar.type('input[type=password]', SENHA, { delay: 20 });
-  await foto(bipar, 'login', {
-    usuario: ['label', 'Usuário'], senha: ['label', 'Senha'], entrar: ['button[type=submit]'],
-  });
   await bipar.click('button[type=submit]');
   await bipar.waitForSelector('.campo-leitura');
   await espera(2500);
   if (await bipar.$('.ativar-som')) await bipar.click('.ativar-som');
+  await semCliente(bipar);
 
   // Tela de bipar
   await foto(bipar, 'bipar', {
@@ -111,6 +114,7 @@ try {
   await tv.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
   await tv.goto(`${SITE}/tv`, { waitUntil: 'domcontentloaded' });
   await tv.waitForSelector('li.cartao');
+  await semCliente(tv);
   await espera(3500);
   await foto(tv, 'tv', {
     colOcorrencia: ['.coluna-ocorrencia'], colDeposito: ['.coluna-deposito'], colUrgencia: ['.coluna-urgencia'],
