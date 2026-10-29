@@ -21,3 +21,6 @@ emulator-dados/
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# Vídeo tutorial (gerado)
+video/saida/
