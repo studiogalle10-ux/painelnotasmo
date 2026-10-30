@@ -308,6 +308,12 @@ input {
   color: #64748b;
 }
 .rodape-tv strong { color: #94a3b8; }
+.rodape-tv { align-items: center; }
+.rodape-marca { display: flex; align-items: center; gap: 0.6vw; }
+.logo-rodape { height: 2.2vh; }
+
+/* Logo do cliente na TV: tem partes pretas, fica num cartão branco para aparecer no fundo escuro. */
+.logo-cliente-tv { display: block; height: 8vh; padding: 0.6vh 0.8vh; background: #fff; border-radius: 1vh; object-fit: contain; }
 
 /* Em Ocorrência: aguardando algo que não depende da MO (âmbar, sem alarme). */
 .coluna-ocorrencia { background: #17130a; box-shadow: inset 0 0 0 0.3vh #b45309; }
